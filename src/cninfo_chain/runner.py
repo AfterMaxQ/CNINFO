@@ -89,6 +89,7 @@ class CollectorRunner:
         rows = self.store.run_nodes(run_id)
         if not rows:
             raise CollectorError(f"run has no node tasks: {run_id}")
+        self.store.set_run_status(run_id, "running")
         writer = RawRunWriter(self.raw_root, run_id)
         grouped: dict[str, list[tuple[int, ChainNode, str]]] = defaultdict(list)
         chain_names: dict[str, str] = {}
@@ -293,9 +294,12 @@ class CollectorRunner:
                 status = int(result["status"])
                 if status in {401, 403}:
                     raise AuthenticationPaused(f"{endpoint} returned HTTP {status}")
-                if status not in {408, 429} and status < 500:
+                if 200 <= status < 300:
                     return result
-                last_error = CollectorError(f"{endpoint} returned HTTP {status}")
+                if status in {408, 429} or status >= 500:
+                    last_error = CollectorError(f"{endpoint} returned HTTP {status}")
+                else:
+                    raise CollectorError(f"{endpoint} returned HTTP {status}")
             if attempt == len(RETRY_DELAYS):
                 break
             self.sleep(RETRY_DELAYS[attempt])

@@ -14,6 +14,10 @@ from cninfo_chain.storage import MySQLStore
 
 
 SENSITIVE_KEYS = {"cookie", "authorization", "token", "sign", "password"}
+HEALTH_PAGE_URL = (
+    "https://pis.cninfo.com.cn/ics/index.html#/industryChain/"
+    "A02n019/lsx019/A02n019/%E5%A4%AA%E9%98%B3%E8%83%BDEVA%E8%83%B6%E8%86%9C"
+)
 
 
 def validate_cdp_url(url: str) -> str:
@@ -74,6 +78,16 @@ class BrowserSession:
         return assert_safe_bridge_result(result)
 
 
+def prepare_bridge(page: Any, source: str) -> None:
+    page.add_init_script(source)
+    page.evaluate(source)
+    if not page.evaluate("() => Boolean(window.__cninfoBridge?.ready())"):
+        page.goto(HEALTH_PAGE_URL, wait_until="domcontentloaded")
+        page.wait_for_function(
+            "() => Boolean(window.__cninfoBridge?.ready())", timeout=20_000
+        )
+
+
 @contextmanager
 def connect_browser(cdp_url: str) -> Iterator[BrowserSession]:
     from playwright.sync_api import sync_playwright
@@ -90,18 +104,12 @@ def connect_browser(cdp_url: str) -> Iterator[BrowserSession]:
         if page is None:
             raise AuthenticationPaused("open a signed-in pis.cninfo.com.cn page in Chrome")
         source = files("cninfo_chain").joinpath("bridge.js").read_text(encoding="utf-8")
-        page.add_init_script(source)
-        page.evaluate(source)
-        if not page.evaluate("() => Boolean(window.__cninfoBridge?.ready())"):
-            page.reload(wait_until="domcontentloaded")
-            try:
-                page.wait_for_function(
-                    "() => Boolean(window.__cninfoBridge?.ready())", timeout=20_000
-                )
-            except Exception as error:
-                raise AuthenticationPaused(
-                    "CNINFO page did not produce an authenticated API request after reload"
-                ) from error
+        try:
+            prepare_bridge(page, source)
+        except Exception as error:
+            raise AuthenticationPaused(
+                "CNINFO page did not produce an authenticated API request on the health page"
+            ) from error
         yield BrowserSession(page)
     finally:
         playwright.stop()
@@ -118,6 +126,8 @@ def doctor(settings: Settings, store: MySQLStore | None = None) -> dict[str, Any
             raise AuthenticationPaused("CNINFO login is no longer valid")
         if not 200 <= result["status"] < 300:
             raise CollectorError(f"CNINFO health request returned HTTP {result['status']}")
+        if str(result["json"].get("code")) in {"401", "403"}:
+            raise AuthenticationPaused("CNINFO login is no longer valid")
         chains = parse_chain_list(result["json"])
     return {
         "status": "ok",

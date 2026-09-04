@@ -160,6 +160,7 @@ def test_resume_skips_terminal_nodes_and_finishes_remaining_node(tmp_path, eva_n
     assert runner.resume("run-1") == "run-1"
 
     assert [commit[1] for commit in store.commits] == [8]
+    assert store.run_statuses[0][1] == "running"
     assert store.run_statuses[-1][1] == "complete"
     assert store.disabled == [("lsx019", ["done", "remaining"])]
 
@@ -185,3 +186,21 @@ def test_error_message_redacts_common_secret_assignments():
     assert "mysql-secret" not in message
     assert "qwerty" not in message
     assert message.count("[REDACTED]") == 3
+
+
+def test_non_retryable_http_error_fails_immediately(tmp_path):
+    class BadRequestBrowser:
+        def __init__(self):
+            self.calls = 0
+
+        def call(self, endpoint, params):
+            self.calls += 1
+            return {"status": 400, "json": {"code": 200, "ok": True, "data": []}}
+
+    browser = BadRequestBrowser()
+    runner = CollectorRunner(
+        FakeStore(), browser, tmp_path, page_size=15, sleep=lambda _: None
+    )
+    with pytest.raises(Exception, match="HTTP 400"):
+        runner._call_with_retry("chain_list", {"chainId": "ROOT"})
+    assert browser.calls == 1

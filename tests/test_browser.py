@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 from importlib.resources import files
+from contextlib import contextmanager
 
 import pytest
 
 from cninfo_chain.browser import (
     BrowserSession,
+    HEALTH_PAGE_URL,
     assert_safe_bridge_result,
+    doctor,
+    prepare_bridge,
     validate_cdp_url,
 )
-from cninfo_chain.errors import SecurityBoundaryError
+from cninfo_chain.errors import AuthenticationPaused, SecurityBoundaryError
 
 
 @pytest.mark.parametrize(
@@ -69,3 +73,68 @@ def test_windows_powershell_launcher_is_ascii_for_legacy_parser_compatibility():
         .read_bytes()
     )
     assert script.isascii()
+
+
+def test_bridge_preparation_navigates_empty_route_to_known_health_page():
+    class FakePage:
+        def __init__(self):
+            self.goto_url = None
+            self.init_source = None
+            self.waited = False
+
+        def add_init_script(self, source):
+            self.init_source = source
+
+        def evaluate(self, expression):
+            return False if expression.startswith("() =>") else None
+
+        def goto(self, url, wait_until):
+            self.goto_url = url
+            assert wait_until == "domcontentloaded"
+
+        def wait_for_function(self, expression, timeout):
+            self.waited = True
+            assert timeout == 20_000
+
+    page = FakePage()
+    prepare_bridge(page, "bridge-source")
+
+    assert page.init_source == "bridge-source"
+    assert page.goto_url == HEALTH_PAGE_URL
+    assert page.waited is True
+
+
+def test_doctor_treats_http_200_business_401_as_authentication_pause(monkeypatch, tmp_path):
+    class Store:
+        def migrate(self):
+            pass
+
+    class Session:
+        def ready(self):
+            return True
+
+        def call(self, endpoint, params):
+            return {
+                "status": 200,
+                "json": {"code": 401, "ok": False, "msg": "unauthorized", "data": {}},
+            }
+
+    @contextmanager
+    def connection(_):
+        yield Session()
+
+    from cninfo_chain.config import Settings
+
+    settings = Settings(
+        mysql_host="127.0.0.1",
+        mysql_port=3306,
+        mysql_user="collector",
+        mysql_password="secret",
+        mysql_database="cninfo",
+        cdp_url="http://127.0.0.1:9222",
+        raw_dir=tmp_path / "raw",
+        export_path=tmp_path / "result.xlsx",
+    )
+    monkeypatch.setattr("cninfo_chain.browser.connect_browser", connection)
+    with pytest.raises(AuthenticationPaused):
+        doctor(settings, Store())
