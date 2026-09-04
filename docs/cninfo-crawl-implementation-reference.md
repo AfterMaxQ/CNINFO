@@ -339,6 +339,9 @@ POST https://pis.cninfo.com.cn/ics/aasKnowledgeBase/industryDetail/companyIncome
   "industryCode": "A02010201",
   "pageNum": 1,
   "pageSize": 15,
+  "province": "",
+  "city_id": "",
+  "county_id": "",
   "industry_flag": true
 }
 ```
@@ -388,7 +391,13 @@ POST https://pis.cninfo.com.cn/ics/aasKnowledgeBase/chaincenter/searchOtherListe
 ```json
 {
   "industry": "A02010201",
+  "paixu": "default",
   "type": "company",
+  "flag": "",
+  "companytype": "",
+  "province": "",
+  "city": "",
+  "district": "",
   "page_num": 1,
   "page_size": 15,
   "industry_flag": true
@@ -431,20 +440,27 @@ POST https://pis.cninfo.com.cn/ics/aasKnowledgeBase/chaincenter/searchOtherListe
 POST https://pis.cninfo.com.cn/ics/aasKnowledgeBase/chaincenter/searchglobalNew
 ```
 
-当前观察请求为 form：
+当前页面实际请求为 form；除行业和分页字段外，空筛选字段也必须保留：
 
 ```text
-industry=A02010201&type=company&pageNumber=1&pageSize=15&flag=noListed&industryFlag=true
+key=&industry=A02010201&type=company&pageNumber=1&pageSize=15&paixu=default&companytype=&province=&city=&district=&clrq=&flag=noListed&industryFlag=true
 ```
 
 等价参数表示：
 
 ```json
 {
+  "key": "",
   "industry": "A02010201",
   "type": "company",
   "pageNumber": 1,
   "pageSize": 15,
+  "paixu": "default",
+  "companytype": "",
+  "province": "",
+  "city": "",
+  "district": "",
+  "clrq": "",
   "flag": "noListed",
   "industryFlag": true
 }

@@ -487,7 +487,14 @@ class MySQLStore:
                 "WHERE table_schema = %s AND table_name IN (" + placeholders + ")",
                 (self.settings.mysql_database, *TABLE_NAMES),
             )
-            return {row["table_name"] for row in cursor.fetchall()}
+            return {
+                next(
+                    value
+                    for key, value in row.items()
+                    if str(key).casefold() == "table_name"
+                )
+                for row in cursor.fetchall()
+            }
 
     @staticmethod
     def _migration_statements() -> list[str]:

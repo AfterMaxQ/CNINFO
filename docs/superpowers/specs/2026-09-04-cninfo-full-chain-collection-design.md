@@ -156,9 +156,9 @@ Chrome 136 起，远程调试开关不能用于默认数据目录，必须同时
 | `dynamic_map` | form | `chainId` | `data.tier*[]` | 无 |
 | `chain_info` | form | `chainid` | `data.list[]` | `data.total` |
 | `node_info` | form | `cnodeid` | `data.list[]` | 仅缺失或异常时补查 |
-| `company_income` | JSON | `industryCode,pageNum,pageSize,industry_flag` | `data.list.list[]` | `total,pages,page_num,page_size` 均在 `data.list` |
-| `listed_search` | JSON | `industry,type,page_num,page_size,industry_flag` | `data.companys[]` | `data.total,total_page,page` |
-| `non_listed_search` | form | `industry,type,pageNumber,pageSize,flag=noListed,industryFlag` | `data.companys[]` | `data.total,total_page,page` |
+| `company_income` | JSON | `industryCode,pageNum,pageSize,industry_flag` 及页面默认空地区筛选字段 | `data.list.list[]` | `total,pages,page_num,page_size` 均在 `data.list` |
+| `listed_search` | JSON | `industry,type,page_num,page_size,industry_flag` 及页面默认排序和空筛选字段 | `data.companys[]` | `data.total,total_page,page` |
+| `non_listed_search` | form | `industry,type,pageNumber,pageSize,flag=noListed,industryFlag` 及页面默认空筛选字段 | `data.companys[]` | `data.total,total_page,page` |
 
 所有响应先执行通用检查，再进入端点解析器：
 
@@ -224,7 +224,7 @@ Chrome 136 起，远程调试开关不能用于默认数据目录，必须同时
 
 用于匹配的 `normalized_name` 只做 Unicode NFKC、首尾去空白、连续空白折叠和全半角括号统一。`company_name` 保留首次出现的非空接口原文，不做工商名称补全或模糊改写。
 
-`company_short_name` 是对外展示和九字段 Excel 使用的标准化简称；只做 Unicode NFKC、首尾空白和全半角括号统一，不擅自删除公司后缀或猜测简称。`company_name` 保留接口原始全称/原文，`normalized_name` 仅供数据库内精确去重，既不是简称，也不是 Excel 导出值。
+`company_short_name` 是接口明确简称的标准化字段；只做 Unicode NFKC、首尾空白和全半角括号统一，不擅自删除公司后缀或猜测简称。`company_name` 保留接口原始全称/原文，`normalized_name` 仅供数据库内精确去重。九字段 Excel 优先使用 `company_short_name`，没有明确简称时使用 `company_name` 兜底，保证已识别企业不因简称缺失而漏出。
 
 #### 接口字段映射和网页对应
 
@@ -253,7 +253,7 @@ stock_code = 年报 first(seccode_one, seccode_two)
              或非上市检索 first(stock[].stock_id, stockCode)
 ```
 
-`company_short_name` 只做安全的 Unicode、空白和括号统一；没有明确简称时保持 `NULL`，不从全称删除后缀猜简称，也不把 `stock[].stock_name` 当作本字段。简称为 `NULL` 不影响企业入库：只要至少一个原始名称字段能形成非空 `company_name`，仍创建/合并 `company` 和 `industry_chain_company`；名称字段全部为空才跳过候选。后续通过搜索或人工/LLM 补齐后再更新该字段。现有 `scripts/fetch_company.py` 仍是接口样例，当前用单一 `name` 字段导出；正式批处理需按上述映射落地 `company_short_name`。
+`company_short_name` 只做安全的 Unicode、空白和括号统一；没有明确简称时保持 `NULL`，不从全称删除后缀猜简称，也不把 `stock[].stock_name` 当作本字段。简称为 `NULL` 不影响企业入库和 Excel 完整性：只要至少一个原始名称字段能形成非空 `company_name`，仍创建/合并 `company` 和 `industry_chain_company`，Excel 使用该原始名称兜底；名称字段全部为空才跳过候选。后续通过搜索或人工/LLM 补齐后再更新简称字段。
 
 ### 8.2 企业合并
 
@@ -280,7 +280,7 @@ company_name、company_short_name（可空）、cninfo_company_id、stock_code�
 1. **节点内去重**：先把同一节点的年报产品、上市检索和非上市检索的全部分页候选记录合并，避免同一企业在该节点的公司单元格中重复出现；
 2. **全局实体去重**：再把合并结果写入全局 `company` 表。企业跨多个节点或主题出现时只保留一条 `company` 记录，由多条 `industry_chain_company` 关系分别连接；重复运行也沿用同一实体。
 
-`company_short_name` 只用于 Excel 交付和内部匹配，不作为数据库去重键；去重只按下列稳定标识和 `normalized_name` 顺序执行。
+`company_short_name` 优先用于 Excel 展示和内部匹配，不作为数据库去重键；去重只按下列稳定标识和 `normalized_name` 顺序执行。
 
 首期直接在 `company` 表保存 `cninfo_company_id` 和 `stock_code`，不再拆分企业标识历史表。合并顺序为：
 
@@ -289,7 +289,7 @@ company_name、company_short_name（可空）、cninfo_company_id、stock_code�
 3. 两种代码都无法关联时，只按完全相同的 `normalized_name` 合并；
 4. 同名记录若带有互相冲突的 CNINFO 企业 ID，不自动合并，节点任务记录 `IDENTITY_CONFLICT`。
 
-同一企业合并时，`company_name` 保留首次出现的非空原始名称；`company_short_name` 优先采用接口明确提供的简称，没有明确简称时保持 `NULL`，不使用全称兜底。
+同一企业合并时，`company_name` 保留首次出现的非空原始名称；`company_short_name` 优先采用接口明确提供的简称，没有明确简称时保持 `NULL`。全称兜底只发生在 Excel 展示层，不回写简称字段。
 
 提供的 EVA 样本共有 87 条接口候选记录，按上述规则合并为 85 家企业：天洋新材通过股票代码合并，苏州优乐赛通过 CNINFO 企业 ID 合并。
 
@@ -602,7 +602,7 @@ PENDING -> COMMITTED_EMPTY       无 industry_code
 规则如下：
 
 - 每个当前成功节点一行；不是一家公司一行。
-- 公司按第 8.1 节的首次来源顺序和第 8.2 节的实体规则去重后，只拼接非空 `company_short_name`；全部为空时公司单元格留空，不用全称冒充简称。
+- 公司按第 8.1 节的首次来源顺序和第 8.2 节的实体规则去重后，优先拼接非空 `company_short_name`；简称为空时拼接原始 `company_name`，不回写或伪造简称。
 - `信源主体` 固定为 `CNINFO产业分析系统`。
 - `信源URL` 是当前节点页面 URL，并设置为可点击超链接。
 - 每个主题只有首行填写“来自CNINFO产业链中心结构化数据”。
@@ -666,7 +666,7 @@ python -m cninfo_chain status [--run-id <run_id>]
 9. 苏州优乐赛只有一个企业实体，保存股票代码和 CNINFO 企业 ID，`listing_status=2`；
 10. 天洋新材的半角/全角括号名称通过股票代码合并，`company_name` 保留首次原文，Excel 输出 `company_short_name=天洋新材`；
 11. 节点投影保持父先子后，并按上游、中游、下游、其他输出；
-12. XLSX 恰好九列、URL 可点击、每个主题只在首行写备注，公司列取 `company_short_name`，且不输出 `node_definition` 或 `normalized_name`。
+12. XLSX 恰好九列、URL 可点击、每个主题只在首行写备注，公司列优先取 `company_short_name`、缺失时取 `company_name`，且不输出 `node_definition` 或 `normalized_name`。
 
 ### 16.2 浏览器冒烟验收
 

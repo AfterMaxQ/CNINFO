@@ -33,10 +33,17 @@ def test_endpoint_registry_keeps_the_three_observed_request_formats():
     assert request_parameters(
         "non_listed_search", industry_code="A02010201", page=5, page_size=15
     ) == {
+        "key": "",
         "industry": "A02010201",
         "type": "company",
         "pageNumber": 5,
         "pageSize": 15,
+        "paixu": "default",
+        "companytype": "",
+        "province": "",
+        "city": "",
+        "district": "",
+        "clrq": "",
         "flag": "noListed",
         "industryFlag": True,
     }

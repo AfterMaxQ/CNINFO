@@ -1,5 +1,5 @@
 (() => {
-  if (window.__cninfoBridge) return;
+  if (window.__cninfoBridge?.version === 2) return;
 
   const allowedPaths = new Set([
     "/ics/aasKnowledgeBase/chaincenter/chainlist/list",
@@ -56,17 +56,26 @@
   };
 
   window.__cninfoBridge = Object.freeze({
+    version: 2,
     ready() {
-      return templates.size > 0;
+      return templates.size > 0 || Boolean(
+        localStorage.getItem("checkToken") && localStorage.getItem("checkSign")
+      );
     },
     async call(request) {
       if (!request || !allowedPaths.has(request.path)) {
         throw new Error("endpoint is not allowed");
       }
       const template = templates.get(request.path) || templates.values().next().value;
-      if (!template) throw new Error("no authenticated request template captured");
+      const token = localStorage.getItem("checkToken");
+      const sign = localStorage.getItem("checkSign");
+      if (!template && (!token || !sign)) {
+        throw new Error("no authenticated request context available");
+      }
 
-      const headers = new Headers(template.headers);
+      const headers = new Headers(template ? template.headers : {});
+      if (token) headers.set("token", token);
+      if (sign) headers.set("sign", sign);
       let body;
       if (request.encoding === "json") {
         headers.set("content-type", "application/json;charset=UTF-8");

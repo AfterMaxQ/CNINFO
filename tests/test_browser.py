@@ -64,6 +64,8 @@ def test_bridge_source_returns_only_status_and_json():
     assert "document.cookie" not in source
     assert "return { status: response.status, json: payload };" in source
     assert "allowedPaths" in source
+    assert 'localStorage.getItem("checkToken")' in source
+    assert 'localStorage.getItem("checkSign")' in source
 
 
 def test_windows_powershell_launcher_is_ascii_for_legacy_parser_compatibility():

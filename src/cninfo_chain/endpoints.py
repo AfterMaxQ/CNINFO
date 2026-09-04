@@ -55,22 +55,38 @@ def request_parameters(
             "industryCode": _required(industry_code, "industry_code"),
             "pageNum": page,
             "pageSize": page_size,
+            "province": "",
+            "city_id": "",
+            "county_id": "",
             "industry_flag": True,
         }
     if endpoint_key == "listed_search":
         return {
             "industry": _required(industry_code, "industry_code"),
+            "paixu": "default",
             "type": "company",
+            "flag": "",
+            "companytype": "",
+            "province": "",
+            "city": "",
+            "district": "",
             "page_num": page,
             "page_size": page_size,
             "industry_flag": True,
         }
     if endpoint_key == "non_listed_search":
         return {
+            "key": "",
             "industry": _required(industry_code, "industry_code"),
             "type": "company",
             "pageNumber": page,
             "pageSize": page_size,
+            "paixu": "default",
+            "companytype": "",
+            "province": "",
+            "city": "",
+            "district": "",
+            "clrq": "",
             "flag": "noListed",
             "industryFlag": True,
         }

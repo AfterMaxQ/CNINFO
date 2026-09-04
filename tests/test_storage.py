@@ -117,3 +117,27 @@ def test_export_query_keeps_empty_nodes_and_uses_all_four_business_tables():
     assert "LEFT JOIN industry_chain_company AS r" in EXPORT_QUERY
     assert "LEFT JOIN company AS co" in EXPORT_QUERY
     assert "n.data_status IN ('complete', 'no_industry_code')" in EXPORT_QUERY
+
+
+def test_information_schema_table_name_is_case_insensitive(settings):
+    class Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def execute(self, *_):
+            pass
+
+        def fetchall(self):
+            return [{"TABLE_NAME": "crawl_run"}, {"TABLE_NAME": "company"}]
+
+    class Connection:
+        def cursor(self):
+            return Cursor()
+
+    assert MySQLStore(settings)._existing_target_tables(Connection()) == {
+        "crawl_run",
+        "company",
+    }

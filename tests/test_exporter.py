@@ -82,7 +82,7 @@ def _rows():
     ]
 
 
-def test_exporter_writes_exact_nine_columns_one_row_per_node_and_short_names(tmp_path):
+def test_exporter_writes_exact_nine_columns_and_complete_company_names(tmp_path):
     target = tmp_path / "result.xlsx"
     store = FakeStore(_rows())
     result = XlsxExporter(store, target).export(run_id="run-1")
@@ -103,7 +103,7 @@ def test_exporter_writes_exact_nine_columns_one_row_per_node_and_short_names(tmp
         "https://pis.cninfo.com.cn/parent",
         "来自CNINFO产业链中心结构化数据",
     ]
-    assert sheet.cell(3, 7).value == "福斯特"
+    assert sheet.cell(3, 7).value == "福斯特、无锡市万力粘合材料股份有限公司"
     assert "杭州福斯特应用材料股份有限公司" not in sheet.cell(3, 7).value
     assert sheet.cell(3, 8).hyperlink.target == "https://pis.cninfo.com.cn/eva"
     assert sheet.cell(3, 9).value is None
@@ -124,4 +124,3 @@ def test_locked_target_does_not_replace_existing_file(monkeypatch, tmp_path):
 
     assert target.read_bytes() == b"existing"
     assert store.export_updates == []
-

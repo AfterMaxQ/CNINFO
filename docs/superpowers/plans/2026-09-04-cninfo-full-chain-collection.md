@@ -227,8 +227,8 @@ cninfo-chain-explorer/
 
 **Work**
 
-- [ ] exporter 用 LEFT JOIN 读取启用主题、成功节点、节点企业关系和企业简称。
-- [ ] 同一节点只输出一行，非空 company_short_name 按来源顺序去重并用顿号连接；全部为空时公司列为空。
+- [ ] exporter 用 LEFT JOIN 读取启用主题、成功节点、节点企业关系、企业简称和原始名称。
+- [ ] 同一节点只输出一行，优先使用 company_short_name；简称为空时以 company_name 兜底，按来源顺序去重并用顿号连接。
 - [ ] 分类1为业务分区，分类2/3为路径前两层，第三层及更深合并进分类4。
 - [ ] URL 写为可点击超链接，每个主题仅首行写备注。
 - [ ] 先写临时 XLSX，重新打开校验九列、行数和超链接，再用 os.replace 替换 result.xlsx。
@@ -259,7 +259,7 @@ cninfo-chain-explorer/
 - [ ] 运行全部非 MySQL 单元测试。
 - [ ] 在一次性 MySQL 测试 schema 运行 migration、表联动和节点事务测试。
 - [ ] 使用专用已登录 Chrome 做 EVA 最小在线冒烟，不扩大到过度验证。
-- [ ] 执行 --export-now 并检查 result.xlsx 九列、超链接、主题首行备注和空简称行为。
+- [ ] 执行 --export-now 并检查 result.xlsx 九列、超链接、主题首行备注和空简称全称兜底行为。
 - [ ] 检查 README 目录树与当前公开文件一致，删除开发过程和旧版本措辞。
 - [ ] 检查 Git 暂存范围，不提交 data/runs、data/processed、export/*.xlsx、缓存或凭据。
 - [ ] 工作区干净且全部验收通过后推送 main。

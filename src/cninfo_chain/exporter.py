@@ -68,10 +68,10 @@ class XlsxExporter:
             companies: list[str] = []
             seen_companies: set[str] = set()
             for row in node_rows:
-                short_name = row.get("company_short_name")
-                if short_name and short_name not in seen_companies:
-                    seen_companies.add(short_name)
-                    companies.append(str(short_name))
+                display_name = row.get("company_short_name") or row.get("company_name")
+                if display_name and display_name not in seen_companies:
+                    seen_companies.add(display_name)
+                    companies.append(str(display_name))
             company_cell = "、".join(companies)
             if len(company_cell) > 32_767:
                 raise CompanyCellTooLong(
