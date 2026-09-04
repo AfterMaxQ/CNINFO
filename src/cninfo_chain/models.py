@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,3 +46,13 @@ class MergedCompany:
     stock_code: str | None
     listing_status: int
     source_order: int
+
+
+@dataclass(frozen=True, slots=True)
+class PageResult:
+    endpoint: str
+    items: tuple[dict[str, Any], ...]
+    total: int
+    pages: int
+    page: int
+    page_size: int

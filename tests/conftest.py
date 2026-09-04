@@ -13,8 +13,11 @@ def raw_dir() -> Path:
 
 
 @pytest.fixture
-def load_json() -> Callable[[Path], dict[str, Any]]:
-    def _load(path: Path) -> dict[str, Any]:
+def load_json(raw_dir: Path) -> Callable[[Path | str], dict[str, Any]]:
+    def _load(path: Path | str) -> dict[str, Any]:
+        path = Path(path)
+        if not path.is_absolute():
+            path = raw_dir / path
         return json.loads(path.read_text(encoding="utf-8"))
 
     return _load
