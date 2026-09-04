@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+*.egg-info/
+.env
+data/runs/
+data/processed/
+data/raw/newenergy_companies/
+export/*.xlsx

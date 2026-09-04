@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-09-03T08:47:44.360Z",
+  "browser": "Chrome",
+  "chain_id": "lsx019",
+  "chain_name": "新能源",
+  "node_id": "A02n019",
+  "node_name": "太阳能EVA胶膜",
+  "industry_code": "A02010201",
+  "source_url": "https://pis.cninfo.com.cn/ics/index.html#/industryChain/A02n019/lsx019/A02n019/%E5%A4%AA%E9%98%B3%E8%83%BDEVA%E8%83%B6%E8%86%9C",
+  "endpoints": {
+    "chain_list": "POST /ics/aasKnowledgeBase/chaincenter/chainlist/list",
+    "dynamic_map": "POST /ics/aasKnowledgeBase/chaincenter/chainlist/dynamicChainMapNew",
+    "industry_info": "POST /ics/aasKnowledgeBase/industry/industry-info",
+    "company_income": "POST /ics/aasKnowledgeBase/industryDetail/companyIncome",
+    "listed_companies": "POST /ics/aasKnowledgeBase/chaincenter/searchOtherListed",
+    "non_listed_companies": "POST /ics/aasKnowledgeBase/chaincenter/searchglobalNew"
+  },
+  "notes": "Response bodies only; browser credentials and headers are not stored."
+}
