@@ -36,6 +36,7 @@ RUN_STATUSES = {"running", "paused", "paused_auth", "partial", "complete", "fail
 
 EXPORT_QUERY = """
 SELECT
+    n.id AS node_db_id,
     c.chain_name,
     c.sort_no AS chain_sort_no,
     n.node_name,
@@ -309,6 +310,13 @@ class MySQLStore:
         if row is None:
             return None
         return {**row, **self.run_summary(run_id)}
+
+    def update_export_path(self, run_id: str, path: str) -> None:
+        with self.transaction() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE crawl_run SET export_path=%s WHERE run_id=%s",
+                (path, run_id),
+            )
 
     def commit_node(
         self,
