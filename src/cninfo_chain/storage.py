@@ -250,6 +250,13 @@ class MySQLStore:
             )
 
     def pending_nodes(self, run_id: str) -> list[dict[str, Any]]:
+        return [
+            row
+            for row in self.run_nodes(run_id)
+            if row["status"] not in TERMINAL_TASK_STATUSES
+        ]
+
+    def run_nodes(self, run_id: str) -> list[dict[str, Any]]:
         with self.connection() as connection, connection.cursor() as cursor:
             cursor.execute(
                 "SELECT t.industry_chain_node_id, t.status, t.retry_count, "
@@ -260,11 +267,48 @@ class MySQLStore:
                 "JOIN industry_chain_node AS n ON n.id=t.industry_chain_node_id "
                 "JOIN industry_chain AS c ON c.id=n.industry_chain_id "
                 "LEFT JOIN industry_chain_node AS p ON p.id=n.parent_id "
-                "WHERE t.run_id=%s AND t.status NOT IN ('committed', 'committed_empty') "
+                "WHERE t.run_id=%s "
                 "ORDER BY c.sort_no, n.sort_no",
                 (run_id,),
             )
             return list(cursor.fetchall())
+
+    def disable_missing_nodes(self, chain_id: str, active_node_ids: Sequence[str]) -> None:
+        if not active_node_ids:
+            raise NodeSetMismatch(f"cannot disable nodes from an empty theme: {chain_id}")
+        placeholders = ", ".join(["%s"] * len(active_node_ids))
+        with self.transaction() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE industry_chain_node AS n "
+                "JOIN industry_chain AS c ON c.id=n.industry_chain_id "
+                "SET n.data_status='disabled', n.updated_at=%s "
+                "WHERE c.chain_id=%s AND n.node_id NOT IN (" + placeholders + ")",
+                (_utc_now(), chain_id, *active_node_ids),
+            )
+
+    def run_summary(self, run_id: str) -> dict[str, int]:
+        with self.connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COUNT(*) AS total_nodes, "
+                "SUM(status IN ('committed', 'committed_empty')) AS completed_nodes, "
+                "SUM(status = 'failed') AS failed_nodes "
+                "FROM crawl_node_task WHERE run_id=%s",
+                (run_id,),
+            )
+            row = cursor.fetchone() or {}
+        return {
+            "total_nodes": int(row.get("total_nodes") or 0),
+            "completed_nodes": int(row.get("completed_nodes") or 0),
+            "failed_nodes": int(row.get("failed_nodes") or 0),
+        }
+
+    def get_run(self, run_id: str) -> dict[str, Any] | None:
+        with self.connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM crawl_run WHERE run_id=%s", (run_id,))
+            row = cursor.fetchone()
+        if row is None:
+            return None
+        return {**row, **self.run_summary(run_id)}
 
     def commit_node(
         self,

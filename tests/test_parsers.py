@@ -104,3 +104,17 @@ def test_real_company_pages_validate_all_pagination(load_json):
 
     with pytest.raises(PaginationMismatch):
         validate_pages(non_listed[:-1])
+
+
+def test_empty_search_result_accepts_zero_total_pages_as_one_captured_page():
+    page = parse_search_page(
+        {
+            "code": 200,
+            "ok": True,
+            "data": {"total": 0, "total_page": 0, "page": 1, "companys": []},
+        },
+        "non_listed_search",
+        15,
+    )
+    assert page.pages == 1
+    assert validate_pages([page]) == []

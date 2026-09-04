@@ -210,14 +210,19 @@ def parse_search_page(payload: Any, endpoint: str, page_size: int) -> PageResult
     if endpoint not in {"listed_search", "non_listed_search"}:
         raise ValueError(f"unsupported search endpoint: {endpoint}")
     data = _mapping(_envelope(payload, endpoint), f"{endpoint}.data")
+    total = _integer(data.get("total"), f"{endpoint}.total")
+    raw_pages = _integer(data.get("total_page"), f"{endpoint}.total_page")
+    pages = 1 if total == 0 and raw_pages == 0 else raw_pages
+    if pages < 1:
+        raise SchemaChanged(f"{endpoint}.total_page must be positive for non-empty data")
     return PageResult(
         endpoint=endpoint,
         items=tuple(
             dict(_mapping(item, f"{endpoint} item"))
             for item in _list(data.get("companys"), f"{endpoint}.data.companys")
         ),
-        total=_integer(data.get("total"), f"{endpoint}.total"),
-        pages=_integer(data.get("total_page"), f"{endpoint}.total_page"),
+        total=total,
+        pages=pages,
         page=_integer(data.get("page"), f"{endpoint}.page"),
         page_size=page_size,
     )
