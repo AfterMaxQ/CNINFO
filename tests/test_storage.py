@@ -115,6 +115,7 @@ def test_export_query_keeps_empty_nodes_and_uses_all_four_business_tables():
     assert "FROM industry_chain AS c" in EXPORT_QUERY
     assert "JOIN industry_chain_node AS n" in EXPORT_QUERY
     assert "LEFT JOIN industry_chain_company AS r" in EXPORT_QUERY
+    assert "r.listing_status IN (1, 2)" in EXPORT_QUERY
     assert "LEFT JOIN company AS co" in EXPORT_QUERY
     assert "n.data_status IN ('complete', 'no_industry_code')" in EXPORT_QUERY
 

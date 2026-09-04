@@ -101,7 +101,7 @@ cninfo-chain --export-now
 
 企业先在单个节点内按 CNINFO 企业 ID、股票代码、规范化原名依次去重，再写入全局 `company` 表。企业跨节点或跨主题出现时复用同一企业记录，通过多条 `industry_chain_company` 关系保留各自归属。上市和非上市接口同时命中时，关系及企业的 `listing_status` 为 `2`。
 
-`company_short_name` 只映射接口明确提供的简称：年报取 `secname_one/secname_two`，上市检索取 `companyShortName`。非上市接口没有明确简称时写入 `NULL`，企业及节点关系仍正常保存。
+`company_short_name` 只映射接口明确提供的简称：年报取 `secname_one/secname_two`，上市检索取 `companyShortName`。非上市接口没有明确简称时写入 `NULL`，企业及节点关系仍正常保存，但不进入当前 XLSX 的公司列。
 
 全部 6 张表和 45 个字段都在 MySQL DDL 中带简洁中文 `COMMENT`。字段、约束和联表查询见 [技术设计](docs/superpowers/specs/2026-09-04-cninfo-full-chain-collection-design.md)。
 
@@ -116,7 +116,7 @@ cninfo-chain --export-now
 - 一行对应一个节点，不是一家企业一行。
 - 分类1为 `上游/中游/下游/其他`，节点路径依次写入分类2至分类4。
 - 父节点、无企业节点和无行业编码节点都保留。
-- 公司列优先写明确的 `company_short_name`；没有简称时写接口原始 `company_name`，保证企业不漏出，并按来源顺序去重后用顿号连接。
+- 公司列只写当前节点具有上市证据（`listing_status` 为 `1` 或 `2`）的非空 `company_short_name`，按来源顺序去重后用顿号连接；不使用企业全称兜底。
 - 信源 URL 是可点击超链接；每个主题只有首行填写备注。
 
 ## 项目结构

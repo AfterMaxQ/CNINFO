@@ -15,7 +15,7 @@
 - MySQL 使用 InnoDB、utf8mb4；物理模型固定为规格中的 6 张表、45 个字段。
 - 每张表和每个字段都必须在 MySQL 中写入简洁中文 COMMENT。
 - 企业去重顺序：CNINFO 企业 ID、股票代码、规范化原名。
-- company_short_name 不参与去重；非上市接口无明确简称时写 NULL，但企业和节点关系仍入库。
+- company_short_name 不参与去重；非上市接口无明确简称时写 NULL，企业和节点关系仍入库，但不进入 XLSX 公司列。
 - 一个节点完成全部接口分页和数量校验后，才能在单个事务中替换该节点结果。
 - 每个主题完成后原子重建一次 XLSX；全站完成后生成最终版；支持手动 --export-now。
 - XLSX 固定九列：主题、信源主体、分类1、分类2、分类3、分类4、公司、信源URL、备注。
@@ -227,8 +227,8 @@ cninfo-chain-explorer/
 
 **Work**
 
-- [ ] exporter 用 LEFT JOIN 读取启用主题、成功节点、节点企业关系、企业简称和原始名称。
-- [ ] 同一节点只输出一行，优先使用 company_short_name；简称为空时以 company_name 兜底，按来源顺序去重并用顿号连接。
+- [ ] exporter 用 LEFT JOIN 读取启用主题、成功节点以及具有上市证据的节点企业关系和企业简称。
+- [ ] 同一节点只输出一行，只拼接 listing_status 为 1 或 2 的非空 company_short_name，按来源顺序去重并用顿号连接。
 - [ ] 分类1为业务分区，分类2/3为路径前两层，第三层及更深合并进分类4。
 - [ ] URL 写为可点击超链接，每个主题仅首行写备注。
 - [ ] 先写临时 XLSX，重新打开校验九列、行数和超链接，再用 os.replace 替换 result.xlsx。
@@ -259,7 +259,7 @@ cninfo-chain-explorer/
 - [ ] 运行全部非 MySQL 单元测试。
 - [ ] 在一次性 MySQL 测试 schema 运行 migration、表联动和节点事务测试。
 - [ ] 使用专用已登录 Chrome 做 EVA 最小在线冒烟，不扩大到过度验证。
-- [ ] 执行 --export-now 并检查 result.xlsx 九列、超链接、主题首行备注和空简称全称兜底行为。
+- [ ] 执行 --export-now 并检查 result.xlsx 九列、超链接、主题首行备注以及非上市企业不进入公司列。
 - [ ] 检查 README 目录树与当前公开文件一致，删除开发过程和旧版本措辞。
 - [ ] 检查 Git 暂存范围，不提交 data/runs、data/processed、export/*.xlsx、缓存或凭据。
 - [ ] 工作区干净且全部验收通过后推送 main。

@@ -53,6 +53,7 @@ JOIN industry_chain_node AS n
   ON n.industry_chain_id = c.id
 LEFT JOIN industry_chain_company AS r
   ON r.industry_chain_node_id = n.id
+ AND r.listing_status IN (1, 2)
 LEFT JOIN company AS co
   ON co.id = r.company_id
 WHERE c.enabled = 1
