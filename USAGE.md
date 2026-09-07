@@ -132,9 +132,21 @@ $env:CNINFO_EXPORT_PATH = "export\result.xlsx"
 
 ## 7. 启动并登录专用 Chrome
 
+执行 `doctor`、`crawl --all` 或 `crawl --resume` 之前，必须先启动项目专用 Chrome。采集命令不会自动启动 Chrome，也不会使用普通 Chrome 的登录窗口；如果 9222 端口没有监听，会报 `connect ECONNREFUSED 127.0.0.1:9222`。
+
 使用项目脚本启动专用 Chrome：
 
 ```powershell
+# 当前目录为 cninfo-chain-explorer
+.\scripts\start_cninfo_chrome.ps1
+```
+
+执行后会新打开一个 Chrome 窗口；脚本本身执行完返回 PowerShell 是正常现象，Chrome 窗口会继续运行。该窗口使用独立的 `CNINFOChromeProfile` 用户目录，并自动打开 CNINFO 产业分析系统页面。
+
+如果 PowerShell 提示禁止运行脚本，只对当前终端临时放开权限后重试：
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\start_cninfo_chrome.ps1
 ```
 
@@ -144,7 +156,15 @@ $env:CNINFO_EXPORT_PATH = "export\result.xlsx"
 - 使用 `127.0.0.1:9222` 开启本机 CDP。
 - 打开 CNINFO 产业分析系统页面。
 
-首次启动后，在新打开的 Chrome 窗口中完成 CNINFO 登录，并保持至少一个 `pis.cninfo.com.cn` 页面打开。不要使用普通 Chrome 默认用户目录替代该专用窗口。
+首次启动后，在新打开的 Chrome 窗口中完成 CNINFO 登录，并保持至少一个 `pis.cninfo.com.cn` 页面打开。采集期间不要关闭这个窗口；普通 Chrome 窗口不能替代项目专用 Chrome。
+
+确认 CDP 端口已就绪：
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:9222/json/version
+```
+
+能返回 Chrome 版本信息后，再进入下一节执行 `doctor`。
 
 如果需要指定专用目录：
 
@@ -156,7 +176,7 @@ $env:CNINFO_EXPORT_PATH = "export\result.xlsx"
 
 ## 8. 启动前预检
 
-确保虚拟环境已激活、MySQL 已启动、YAML 配置已填写，并且专用 Chrome 已登录，然后执行：
+确保虚拟环境已激活、MySQL 已启动、YAML 配置已填写，且专用 Chrome 已启动、已登录并通过上一节的 CDP 检查，然后执行：
 
 ```powershell
 python -m cninfo_chain doctor
@@ -306,6 +326,14 @@ export/result.xlsx        # 当前数据库状态生成的九字段 XLSX
 默认会使用内置配置；如果指定了 `CNINFO_CONFIG_FILE`，确认路径存在、YAML 格式正确，并且 `mysql.host`、`mysql.user`、`mysql.password`、`mysql.database` 非空。环境变量覆盖项为空时也会导致配置错误。
 
 ### 无法连接 Chrome 或提示打开登录页面
+
+如果看到 `connect ECONNREFUSED 127.0.0.1:9222`，说明专用 Chrome 尚未启动或已被关闭。先在项目目录执行：
+
+```powershell
+.\scripts\start_cninfo_chrome.ps1 -ProfileDir "$env:LOCALAPPDATA\CNINFOChromeProfile"
+```
+
+等待窗口打开后，用 `Invoke-RestMethod http://127.0.0.1:9222/json/version` 确认端口，再执行 `doctor` 和采集命令。
 
 确认：
 
