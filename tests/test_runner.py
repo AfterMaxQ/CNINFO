@@ -197,6 +197,53 @@ def test_resume_skips_terminal_nodes_and_finishes_remaining_node(tmp_path, eva_n
     assert store.disabled == [("lsx019", ["done", "remaining"])]
 
 
+def test_resume_does_not_reexport_already_completed_themes(tmp_path, eva_node):
+    store = FakeStore()
+    base = {
+        "chain_name": "新能源",
+        "parent_node_id": eva_node.parent_node_id,
+        "node_name": eva_node.node_name,
+        "node_definition": eva_node.node_definition,
+        "business_zone": eva_node.business_zone,
+        "sort_no": eva_node.sort_no,
+        "path_json": json.dumps(eva_node.path, ensure_ascii=False),
+        "industry_name": eva_node.industry_name,
+        "source_url": eva_node.source_url,
+    }
+    store.rows = [
+        {
+            **base,
+            "chain_id": "lsx019",
+            "industry_chain_node_id": 7,
+            "node_id": "done",
+            "status": "committed",
+            "industry_code": None,
+        },
+        {
+            **base,
+            "chain_id": "yl001",
+            "chain_name": "石油天然气",
+            "industry_chain_node_id": 8,
+            "node_id": "remaining",
+            "status": "failed",
+            "industry_code": None,
+        },
+    ]
+    completed_themes = []
+    runner = CollectorRunner(
+        store,
+        FakeBrowser([]),
+        tmp_path,
+        page_size=15,
+        sleep=lambda _: None,
+        on_theme_complete=completed_themes.append,
+    )
+
+    assert runner.resume("run-1") == "run-1"
+
+    assert completed_themes == ["yl001"]
+
+
 def test_authentication_business_code_pauses_instead_of_marking_node_failed(
     tmp_path, eva_node
 ):

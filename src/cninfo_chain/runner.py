@@ -125,9 +125,10 @@ class CollectorRunner:
                     task_status in {"committed", "committed_empty"}
                     for _, _, task_status in tasks
                 )
+                pending_count = len(tasks) - completed_count
                 self._log(
                     f"[续跑] 主题 {chain_names[chain_id]}：跳过 {completed_count} 个已完成节点，"
-                    f"待处理 {len(tasks) - completed_count} 个"
+                    f"待处理 {pending_count} 个"
                 )
                 for node_db_id, node, task_status in tasks:
                     if task_status in {"committed", "committed_empty"}:
@@ -140,7 +141,7 @@ class CollectorRunner:
                     self.store.disable_missing_nodes(
                         chain_id, [node.node_id for _, node, _ in tasks]
                     )
-                    if self.on_theme_complete:
+                    if self.on_theme_complete and pending_count > 0:
                         self.on_theme_complete(chain_id)
             status = "complete" if all_complete else "partial"
             self.store.set_run_status(run_id, status)
