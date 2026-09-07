@@ -82,14 +82,14 @@ cninfo-chain-explorer/
 - [ ] 初始化本地 main 分支并添加远端，但不推送；执行前再次确认远端没有分支。
 - [ ] .gitignore 排除 __pycache__、测试缓存、虚拟环境、data/runs、data/processed、export/*.xlsx 等运行产物。
 - [ ] pyproject.toml 声明 Python 3.11、Playwright、PyMySQL、openpyxl、pytest 和 cninfo-chain 命令入口。
-- [ ] Settings 从环境变量读取 MySQL、CDP、raw 和 export 配置；密码不进入 repr 或安全摘要。
+- [ ] Settings 从 config.yaml 读取 MySQL、CDP、raw 和 export 配置，环境变量可覆盖；密码不进入 repr 或安全摘要。
 - [ ] 建立主题、节点、企业候选和合并企业 dataclass，以及稳定异常类型。
 - [ ] tests/conftest.py 提供 data/raw 路径和 JSON fixture。
 
 **Acceptance**
 
 - <code>python -m pip install -e ".[test]"</code> 成功。
-- 配置测试证明缺失环境变量时只输出变量名，任何输出不包含数据库密码。
+- 配置测试证明默认 YAML、YAML 覆盖和环境变量覆盖均生效，任何输出不包含数据库密码。
 - 本地 Git 只跟踪代码、文档和测试需要的根级 raw fixture；远端仍为空。
 
 ---
@@ -234,7 +234,7 @@ cninfo-chain-explorer/
 - [ ] 先写临时 XLSX，重新打开校验九列、行数和超链接，再用 os.replace 替换 result.xlsx。
 - [ ] 实现 doctor、crawl --all、crawl --resume、status 和 --export-now。
 - [ ] --export-now 只访问 MySQL，不连接 Chrome、不发网络请求。
-- [ ] README 按最终真实结构重写为用户手册，包含安装、环境变量、Chrome、MySQL 表职责、命令、输出和测试方法。
+- [ ] README 和 USAGE 按最终真实结构重写为用户手册，包含安装、YAML 配置、可选环境变量覆盖、Chrome、MySQL 表职责、命令、输出和测试方法。
 - [ ] README 删除实施后失效的“下一步”“尚未实现”“与旧方案比较”等内容，不写本次新增、原来、此前、旧版、修改后、评审反馈或迁移过程。
 
 **Acceptance**

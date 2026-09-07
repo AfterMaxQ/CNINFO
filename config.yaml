@@ -1,0 +1,15 @@
+# 请按实际环境填写；默认 MySQL 用户为 root，密码为 12345。
+
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: "12345"
+  database: cninfo_chain
+
+chrome:
+  cdp_url: http://127.0.0.1:9222
+
+paths:
+  raw_dir: data/runs
+  export_path: export/result.xlsx

@@ -6,17 +6,65 @@ from pathlib import Path
 import pytest
 
 
-def test_settings_requires_mysql_identity() -> None:
+def test_settings_use_yaml_defaults_without_environment() -> None:
     from cninfo_chain.config import Settings
 
-    with pytest.raises(ValueError) as exc_info:
-        Settings.from_env({})
+    settings = Settings.from_env({})
 
-    message = str(exc_info.value)
-    assert "CNINFO_MYSQL_HOST" in message
-    assert "CNINFO_MYSQL_USER" in message
-    assert "CNINFO_MYSQL_PASSWORD" in message
-    assert "CNINFO_MYSQL_DATABASE" in message
+    assert settings.mysql_host == "127.0.0.1"
+    assert settings.mysql_port == 3306
+    assert settings.mysql_user == "root"
+    assert settings.mysql_password == "12345"
+    assert settings.mysql_database == "cninfo_chain"
+
+
+def test_settings_load_yaml_and_environment_overrides(tmp_path: Path) -> None:
+    from cninfo_chain.config import Settings
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+mysql:
+  host: db.internal
+  port: 3307
+  user: yaml_user
+  password: yaml_password
+  database: yaml_db
+chrome:
+  cdp_url: http://127.0.0.1:9222
+paths:
+  raw_dir: yaml-runs
+  export_path: yaml-result.xlsx
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = Settings.from_env(
+        {
+            "CNINFO_CONFIG_FILE": str(config_path),
+            "CNINFO_MYSQL_USER": "env_user",
+            "CNINFO_PAGE_SIZE": "100",
+        }
+    )
+
+    assert settings.mysql_host == "db.internal"
+    assert settings.mysql_port == 3307
+    assert settings.mysql_user == "env_user"
+    assert settings.mysql_password == "yaml_password"
+    assert settings.mysql_database == "yaml_db"
+    assert settings.raw_dir == Path("yaml-runs")
+    assert settings.export_path == Path("yaml-result.xlsx")
+    assert settings.page_size == 15
+
+
+def test_settings_reject_invalid_yaml_root(tmp_path: Path) -> None:
+    from cninfo_chain.config import Settings
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("- not-a-mapping\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="config YAML root must be a mapping"):
+        Settings.from_env({"CNINFO_CONFIG_FILE": str(config_path)})
 
 
 def test_settings_defaults_and_repr_hide_password(tmp_path: Path) -> None:

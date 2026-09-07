@@ -2,6 +2,8 @@
 
 面向 Windows 业务人员的 CNINFO 全主题批处理工具。程序连接业务人员已登录的专用 Chrome，从 CNINFO 产业分析系统读取产业链、节点和企业接口数据，按节点原子写入 MySQL，并生成固定九字段 XLSX。
 
+完整的安装、配置、启动、恢复和导出步骤见 [USAGE.md](USAGE.md)。
+
 ## 环境要求
 
 - Windows 10/11
@@ -17,30 +19,41 @@ python -m venv .venv
 python -m pip install -e ".[test]"
 ```
 
-## MySQL 配置
+## 配置文件和 MySQL
+
+直接编辑项目根目录的 `config.yaml` 并按实际环境填写。默认 MySQL 用户为 `root`、密码为 `12345`；正式运行前请改成实际账号密码。
 
 先创建一个供采集器独占表名的数据库，并授予采集账号建表、查询和写入权限。程序首次执行 `doctor` 时会创建 6 张业务及运行表；遇到部分同名表或不兼容结构时会停止，不会自动删除或修改已有表。
 
-在启动命令的 PowerShell 会话中设置：
+配置文件的主要内容如下：
 
-```powershell
-$env:CNINFO_MYSQL_HOST = "127.0.0.1"
-$env:CNINFO_MYSQL_PORT = "3306"
-$env:CNINFO_MYSQL_USER = "cninfo_collector"
-$env:CNINFO_MYSQL_PASSWORD = "请替换为实际密码"
-$env:CNINFO_MYSQL_DATABASE = "cninfo_chain"
+```yaml
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  user: root
+  password: "12345"
+  database: cninfo_chain
+
+chrome:
+  cdp_url: http://127.0.0.1:9222
+
+paths:
+  raw_dir: data/runs
+  export_path: export/result.xlsx
 ```
 
-可选配置：
+环境变量可以覆盖 YAML 中的同名配置，适合临时切换数据库或输出路径。也可以通过 `CNINFO_CONFIG_FILE` 指定其他 YAML 文件；默认读取项目根目录的 `config.yaml`。
 
-| 环境变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `CNINFO_CDP_URL` | `http://127.0.0.1:9222` | Chrome 调试地址，只允许本机回环地址 |
-| `CNINFO_RAW_DIR` | `data/runs` | 运行期接口响应目录 |
-| `CNINFO_EXPORT_PATH` | `export/result.xlsx` | 九字段 XLSX 输出位置 |
-| `CNINFO_PAGE_SIZE` | `15` | 企业分页大小 |
+| 环境变量 | 说明 |
+| --- | --- |
+| `CNINFO_CONFIG_FILE` | YAML 配置文件路径 |
+| `CNINFO_MYSQL_HOST`、`CNINFO_MYSQL_PORT` | 覆盖 MySQL 地址和端口 |
+| `CNINFO_MYSQL_USER`、`CNINFO_MYSQL_PASSWORD`、`CNINFO_MYSQL_DATABASE` | 覆盖 MySQL 登录账号、密码和数据库 |
+| `CNINFO_CDP_URL` | 覆盖 Chrome 调试地址，只允许本机回环地址 |
+| `CNINFO_RAW_DIR`、`CNINFO_EXPORT_PATH` | 覆盖 raw 和 XLSX 输出路径 |
 
-密码只从环境变量读取，不进入配置摘要、raw JSON、MySQL 业务字段或 XLSX。
+配置优先级为：内置默认值 → YAML 文件 → 环境变量。密码不进入配置摘要、raw JSON、MySQL 业务字段或 XLSX。
 
 ## 启动已登录 Chrome
 
@@ -117,12 +130,15 @@ cninfo-chain --export-now
 - 分类1为 `上游/中游/下游/其他`，节点路径依次写入分类2至分类4。
 - 父节点、无企业节点和无行业编码节点都保留。
 - 公司列只写当前节点具有上市证据（`listing_status` 为 `1` 或 `2`）的非空 `company_short_name`，按来源顺序去重后用顿号连接；不使用企业全称兜底。
+- 企业接口按响应总页数自动采集全部页面，单页请求大小不是企业总量限制。
 - 信源 URL 是可点击超链接；每个主题只有首行填写备注。
 
 ## 项目结构
 
 ```text
 cninfo-chain-explorer/
+├─ USAGE.md                     完整安装、配置和运行手册
+├─ config.yaml                  MySQL、Chrome、路径和分页配置
 ├─ src/cninfo_chain/             采集、解析、MySQL、Chrome 桥和 XLSX 代码
 ├─ src/cninfo_chain/migrations/  MySQL 顺序 migration
 ├─ scripts/                      Chrome 启动脚本和接口探索工具
