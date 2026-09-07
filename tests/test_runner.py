@@ -92,14 +92,8 @@ def test_node_without_industry_code_commits_empty_without_company_calls(tmp_path
 def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_node):
     income = load_json("node_A02n019_companyIncome.json")
     listed = load_json("node_A02n019_searchOtherListed.json")
-    non_listed_first = load_json("node_A02n019_searchglobalNew.json")
-    broken_last = load_json("node_A02n019_searchglobalNew_page5.json")
-    broken_last["data"]["page"] = 4
-    browser = FakeBrowser(
-        [income, listed, non_listed_first]
-        + [load_json(f"node_A02n019_searchglobalNew_page{i}.json") for i in (2, 3, 4)]
-        + [broken_last]
-    )
+    listed["data"]["page"] = 2
+    browser = FakeBrowser([income, listed])
     store = FakeStore()
     runner = CollectorRunner(store, browser, tmp_path, page_size=15, sleep=lambda _: None)
 
@@ -109,16 +103,11 @@ def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_no
     assert store.commits == []
 
 
-def test_complete_real_fixture_node_commits_85_companies(tmp_path, load_json, eva_node):
+def test_complete_real_fixture_node_commits_15_listed_companies(tmp_path, load_json, eva_node):
     browser = FakeBrowser(
         [
             load_json("node_A02n019_companyIncome.json"),
             load_json("node_A02n019_searchOtherListed.json"),
-            load_json("node_A02n019_searchglobalNew.json"),
-            *[
-                load_json(f"node_A02n019_searchglobalNew_page{i}.json")
-                for i in (2, 3, 4, 5)
-            ],
         ]
     )
     store = FakeStore()
@@ -127,11 +116,10 @@ def test_complete_real_fixture_node_commits_85_companies(tmp_path, load_json, ev
     runner.collect_node("run-1", 7, eva_node)
 
     assert len(store.commits) == 1
-    assert len(store.commits[0][3]) == 85
-    assert [call[0] for call in browser.calls[:3]] == [
+    assert len(store.commits[0][3]) == 15
+    assert [call[0] for call in browser.calls] == [
         "company_income",
         "listed_search",
-        "non_listed_search",
     ]
 
 

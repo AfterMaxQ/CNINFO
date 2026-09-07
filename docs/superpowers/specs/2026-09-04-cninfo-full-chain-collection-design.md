@@ -39,9 +39,9 @@
 | 无 `industry_code` 节点 | 14 |
 | EVA 年报产品记录 | 声明 9，实际 9 个有效企业 |
 | EVA 上市检索 | 7，1 页 |
-| EVA 非上市检索 | 71，5 页，行数为 15/15/15/15/11 |
+| EVA 非上市检索样本 | 71，5 页，行数为 15/15/15/15/11（仅作解析校验样本） |
 
-2026-09-04 的登录态 Chrome 轻量检查确认：主题中心会调用 `chainlist/list`；EVA 节点页会调用 `industry-info`、`companyIncome`、`searchOtherListed` 和 `searchglobalNew`；切换到非上市企业第 2 页后再次调用 `searchglobalNew`，并渲染第 16 至 30 条记录。该检查证明登录会话内抓取和分页闭环可行，不替代正式程序对外部 CDP 端口的上线预检。
+登录态 Chrome 的最小检查确认：主题中心和 EVA 节点页可以在同一页面上下文调用 `chainlist/list`、`industry-info`、`companyIncome` 和 `searchOtherListed`。当前采集只使用年报产品和上市公司检索结果；非上市响应仅保留为离线解析样本，不参与上市公司交付。
 
 ### 2.1 真实响应对实现参考的修正
 
@@ -53,7 +53,7 @@
 - 企业不能只保留一个“首选代码”。不同接口可能提供 `stockCode`、`seccode_one/two`、`stock[].stock_id` 以及 `company_id`/`company_num_id_one/two`，这些稳定标识都要参与节点内和跨节点合并。
 - 响应中的 `isListed` 与页面分组可能不一致。首期按来源接口分组计算上市状态；原始 `isListed` 仅随调试用 raw JSON 保留，不单独入库。
 
-按全部稳定标识合并提供的 EVA 样本时，87 条原始候选记录对应 85 个企业实体：天洋新材通过股票代码 `603330` 合并，苏州优乐赛通过 CNINFO `company_id=6830078` 合并。后者同时出现在上市和非上市接口，应标记上市状态冲突，而不是生成两个企业。
+按全部稳定标识合并提供的 EVA 年报和上市样本时，16 条原始候选记录对应 15 个上市企业实体：天洋新材通过股票代码 `603330` 合并。
 
 ## 3. 目标与边界
 
@@ -62,7 +62,7 @@
 - 动态发现 CNINFO 当前返回的全部主题，不硬编码 134。
 - 按 `dynamicChainMapNew.children` 还原每个主题的完整节点树。
 - 保留父节点、无企业节点和无行业编码节点。
-- 对有行业编码的节点完整采集三类企业接口结果并按 `total` 分页。
+- 对有行业编码的节点完整采集年报产品和上市公司检索两类接口结果并按 `total` 分页。
 - 保存 CNINFO 返回的节点定义文本，供后续与公司内部主题做语义匹配；首期不生成向量或自动匹配结果。
 - 中断后从未提交节点继续，不重复已提交节点。
 - 重复运行不产生重复节点、企业或节点—企业关系。
@@ -158,7 +158,7 @@ Chrome 136 起，远程调试开关不能用于默认数据目录，必须同时
 | `node_info` | form | `cnodeid` | `data.list[]` | 仅缺失或异常时补查 |
 | `company_income` | JSON | `industryCode,pageNum,pageSize,industry_flag` 及页面默认空地区筛选字段 | `data.list.list[]` | `total,pages,page_num,page_size` 均在 `data.list` |
 | `listed_search` | JSON | `industry,type,page_num,page_size,industry_flag` 及页面默认排序和空筛选字段 | `data.companys[]` | `data.total,total_page,page` |
-| `non_listed_search` | form | `industry,type,pageNumber,pageSize,flag=noListed,industryFlag` 及页面默认空筛选字段 | `data.companys[]` | `data.total,total_page,page` |
+| `non_listed_search` | form | `industry,type,pageNumber,pageSize,flag=noListed,industryFlag` 及页面默认空筛选字段 | `data.companys[]` | `data.total,total_page,page`；当前仅用于离线解析校验，不参与采集 |
 
 所有响应先执行通用检查，再进入端点解析器：
 
@@ -213,8 +213,7 @@ Chrome 136 起，远程调试开关不能用于默认数据目录，必须同时
 候选记录按以下固定顺序进入实体合并器：
 
 1. 年报产品披露，保持接口行序；
-2. 上市公司检索，保持接口行序；
-3. 非上市公司检索，按页码和页内顺序。
+2. 上市公司检索，保持接口行序。
 
 名称只取接口原文，并分别保存原始名称和交付简称：
 
@@ -228,13 +227,13 @@ Chrome 136 起，远程调试开关不能用于默认数据目录，必须同时
 
 #### 接口字段映射和网页对应
 
-`company_short_name` 是采集器统一后的字段名，不是 CNINFO JSON 中的固定字段名。网页已经实现了相同的展示逻辑，但三个页面区域使用的原始字段不同：
+`company_short_name` 是采集器统一后的字段名，不是 CNINFO JSON 中的固定字段名。网页已经实现了相同的展示逻辑，当前采集涉及的两个页面区域使用的原始字段不同：
 
 | 页面区域 | 原始名称字段 | 简称字段 | 代码/企业 ID | 页面表现 |
 | --- | --- | --- | --- | --- |
 | 年报产品披露 | `company_name_one/two` | `secname_one/two` | `seccode_one/two`、`company_num_id_one/two` | 显示类似“中粮科技（000930）” |
 | 上市公司检索 | `fullname` | `companyShortName` | `stockCode`、`company_id` | 显示类似“双塔食品（002481）” |
-| 非上市公司检索 | `fullname` | 无直接映射，写 `NULL` | `stock[].stock_id`、`company_id` | 网页表格显示企业全称，简称留待后续补齐 |
+| 非上市公司检索 | `fullname` | 无直接映射，写 `NULL` | `stock[].stock_id`、`company_id` | 保留为离线解析样本，不参与当前采集 |
 
 采集器按来源类型执行确定性映射，再写入 `company`：
 
@@ -253,31 +252,31 @@ stock_code = 年报 first(seccode_one, seccode_two)
              或非上市检索 first(stock[].stock_id, stockCode)
 ```
 
-`company_short_name` 只做安全的 Unicode、空白和括号统一；没有明确简称时保持 `NULL`，不从全称删除后缀猜简称，也不把 `stock[].stock_name` 当作本字段。简称为 `NULL` 不影响企业入库：只要至少一个原始名称字段能形成非空 `company_name`，仍创建/合并 `company` 和 `industry_chain_company`；名称字段全部为空才跳过候选。当前 Excel 只输出具有上市证据的非空简称，非上市企业不进入公司列。
+`company_short_name` 只做安全的 Unicode、空白和括号统一；没有明确简称时保持 `NULL`，不从全称删除后缀猜简称，也不把 `stock[].stock_name` 当作本字段。当前采集只提交上市候选，Excel 只输出具有上市证据的非空 `company_short_name`。
 
 ### 8.2 企业合并
 
 #### 节点内企业识别逻辑
 
-节点内先把三类接口和全部分页结果转换成内存候选对象，不直接以企业名称作为唯一键。候选对象至少包含：
+节点内先把两类接口和全部分页结果转换成内存候选对象，不直接以企业名称作为唯一键。候选对象至少包含：
 
 ```text
 company_name、company_short_name（可空）、cninfo_company_id、stock_code、listing_signal、source_order
 ```
 
-按“年报产品 → 上市检索 → 非上市检索”的来源顺序处理；同一来源内按接口返回页码和页内顺序处理。每条候选记录按以下顺序查找已有实体：
+按“年报产品 → 上市检索”的来源顺序处理；同一来源内按接口返回页码和页内顺序处理。每条候选记录按以下顺序查找已有实体：
 
 1. 有 `cninfo_company_id` 时，先按 `id:<cninfo_company_id>` 查找；
-2. 未命中且有 `stock_code` 时，按 `stock:<stock_code>` 查找；非上市接口的代码来自 `stock[].stock_id`；
+2. 未命中且有 `stock_code` 时，按 `stock:<stock_code>` 查找；
 3. 仍未命中时，按 `name:<normalized_name>` 查找；
 4. 命中一个实体则合并，命中多个实体或稳定标识相互冲突时不强行合并，节点失败并记录 `IDENTITY_CONFLICT`；
 5. 未命中则创建新的内存实体。实体的 `source_order` 取首次出现位置，`company_name` 保留首次非空原文，`company_short_name` 有明确简称时写入，没有时保持 `NULL`。
 
-节点内同一企业的上市状态按候选信号汇总：只有上市信号为 `1`，只有非上市信号为 `0`，两类信号同时出现为 `2`，没有可判断信号为 `9`。节点处理完成后，每个实体最多生成一条 `industry_chain_company` 关系。
+节点内同一企业的上市状态按候选信号汇总。当前采集的两类接口均提供上市信号 `1`，节点处理完成后，每个实体最多生成一条 `industry_chain_company` 关系。
 
 去重分两层执行：
 
-1. **节点内去重**：先把同一节点的年报产品、上市检索和非上市检索的全部分页候选记录合并，避免同一企业在该节点的公司单元格中重复出现；
+1. **节点内去重**：先把同一节点的年报产品和上市检索的全部分页候选记录合并，避免同一企业在该节点的公司单元格中重复出现；
 2. **全局实体去重**：再把合并结果写入全局 `company` 表。企业跨多个节点或主题出现时只保留一条 `company` 记录，由多条 `industry_chain_company` 关系分别连接；重复运行也沿用同一实体。
 
 `company_short_name` 用于上市企业的 Excel 展示和内部匹配，不作为数据库去重键；去重只按下列稳定标识和 `normalized_name` 顺序执行。
@@ -291,7 +290,7 @@ company_name、company_short_name（可空）、cninfo_company_id、stock_code�
 
 同一企业合并时，`company_name` 保留首次出现的非空原始名称；`company_short_name` 优先采用接口明确提供的简称，没有明确简称时保持 `NULL`。Excel 不以全称兜底。
 
-提供的 EVA 样本共有 87 条接口候选记录，按上述规则合并为 85 家企业：天洋新材通过股票代码合并，苏州优乐赛通过 CNINFO 企业 ID 合并。
+提供的 EVA 年报和上市样本共有 16 条接口候选记录，按上述规则合并为 15 家上市企业；天洋新材通过股票代码合并。
 
 ### 8.3 上市/非上市字段
 
@@ -304,7 +303,7 @@ company_name、company_short_name（可空）、cninfo_company_id、stock_code�
 | 2 | 上市/非上市接口同时出现，状态冲突 |
 | 9 | 暂时无法判断 |
 
-采集器在内存中把 `companyIncome`、`searchOtherListed` 视为上市信号，把 `searchglobalNew` 视为非上市信号。当前节点候选记录去重后，直接计算 `industry_chain_company.listing_status`；企业主表再根据该企业当前全部节点关系汇总 `company.listing_status`。两类信号同时存在时记为 2。
+采集器在内存中把 `companyIncome`、`searchOtherListed` 视为上市信号。当前节点候选记录去重后，直接计算 `industry_chain_company.listing_status`；企业主表再根据该企业当前全部节点关系汇总 `company.listing_status`。表结构仍保留 `0/2/9` 状态，以兼容已有数据和后续导入，但当前采集不会主动产生非上市关系。
 
 数据库不保存命中接口类型、原始 `isListed` 或逐条原始名称等溯源字段；需要排查时查看该运行的 raw JSON。上市状态不增加到 XLSX，九字段合同保持不变。
 
@@ -312,7 +311,7 @@ company_name、company_short_name（可空）、cninfo_company_id、stock_code�
 
 ### 9.1 数据库约定与裁剪原则
 
-首期使用 MySQL 8.0、InnoDB 和 `utf8mb4`。所有时间以 UTC 写入 `DATETIME(6)`；表名和字段名使用小写蛇形命名。运行配置优先读取项目根目录 `config.yaml`，环境变量可以覆盖 YAML；仓库中的配置文件只提供默认连接项，实际数据库密码不写入日志、配置摘要、raw 或 XLSX。
+首期使用 MySQL 8.0、InnoDB 和 `utf8mb4`。所有时间以 UTC 写入 `DATETIME(6)`；表名和字段名使用小写蛇形命名。运行配置优先读取项目根目录 `config.yaml`，环境变量可以覆盖 YAML；首次 migration 前若目标数据库不存在，由配置账号自动创建；仓库中的配置文件只提供默认连接项，实际数据库密码不写入日志、配置摘要、raw 或 XLSX。
 
 数据模型只保留 6 张表：4 张业务表维护主题、节点、企业及其关系，2 张运行表支持全站任务和节点级断点恢复。继续合并会重复主题、节点或企业数据，或者失去节点级恢复能力，因此 6 张表是首期下限。接口响应是确定性字段映射，首期不在 MySQL 建逐请求证据、节点历史快照和企业标识历史：
 
@@ -551,13 +550,12 @@ PENDING -> COMMITTED_EMPTY       无 industry_code
 1. 获取或确认节点元数据；
 2. 完成 `companyIncome` 全部分页；
 3. 完成 `searchOtherListed` 全部分页；
-4. 完成 `searchglobalNew` 全部分页；
-5. 分别核对声明总数、页数和实际行数；
-6. 解析候选企业并按 CNINFO 企业 ID、股票代码、规范化名称依次合并；
-7. 保存本节点 raw JSON；
-8. 开启 MySQL 事务，更新节点、企业和节点企业关系；
-9. 更新 `industry_chain_node.data_status=complete` 和 `crawl_node_task.status=committed`；
-10. 提交事务。
+4. 分别核对声明总数、页数和实际行数；
+5. 解析候选企业并按 CNINFO 企业 ID、股票代码、规范化名称依次合并；
+6. 保存本节点 raw JSON；
+7. 开启 MySQL 事务，更新节点、企业和节点企业关系；
+8. 更新 `industry_chain_node.data_status=complete` 和 `crawl_node_task.status=committed`；
+9. 提交事务。
 
 任一步失败均回滚当前节点的数据库变更，旧节点数据和旧企业关系保持不变。
 
@@ -663,11 +661,10 @@ python -m cninfo_chain status [--run-id <run_id>]
 5. EVA 年报分页对象解析出 9 个有效企业，包括只有 `company_name_two` 的记录；
 6. 上市检索为 7 条；非上市检索为 71 条、5 页、页行数 15/15/15/15/11；
 7. 非上市响应中的 `stock[].stock_id` 可映射为代码，但没有直接简称字段时 `company_short_name` 保持 NULL；
-8. 87 条候选记录按 CNINFO 企业 ID、股票代码和规范化名称合并为 85 个企业；
-9. 苏州优乐赛只有一个企业实体，保存股票代码和 CNINFO 企业 ID，`listing_status=2`；
-10. 天洋新材的半角/全角括号名称通过股票代码合并，`company_name` 保留首次原文，Excel 输出 `company_short_name=天洋新材`；
-11. 节点投影保持父先子后，并按上游、中游、下游、其他输出；
-12. XLSX 恰好九列、URL 可点击、每个主题只在首行写备注，公司列只取具有上市证据的非空 `company_short_name`，且不输出非上市企业、`company_name`、`node_definition` 或 `normalized_name`。
+8. 16 条上市候选记录按 CNINFO 企业 ID、股票代码和规范化名称合并为 15 个企业；
+9. 天洋新材的半角/全角括号名称通过股票代码合并，`company_name` 保留首次原文，Excel 输出 `company_short_name=天洋新材`；
+10. 节点投影保持父先子后，并按上游、中游、下游、其他输出；
+11. XLSX 恰好九列、URL 可点击、每个主题只在首行写备注，公司列只取具有上市证据的非空 `company_short_name`，且不输出非上市企业、`company_name`、`node_definition` 或 `normalized_name`。
 
 ### 16.2 浏览器冒烟验收
 
@@ -676,9 +673,8 @@ python -m cninfo_chain status [--run-id <run_id>]
 1. 外部 Python 能通过回环 CDP 端口连接；
 2. `doctor` 不读取或输出认证值；
 3. 根目录请求成功；
-4. EVA 节点三类企业接口第一页成功；
-5. 非上市第 2 页返回 15 条且 `total=71`；
-6. 暂停并恢复后不会重复提交该节点。
+4. EVA 节点年报和上市企业接口第一页成功；
+5. 暂停并恢复后不会重复提交已完成节点，并只重新采集未完成节点。
 
 ### 16.3 全站完成条件
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from contextlib import contextmanager
 from pathlib import Path
 
 from cninfo_chain.config import Settings
@@ -65,3 +67,42 @@ def test_missing_configuration_returns_startup_exit_code(monkeypatch, capsys):
     assert cli.main(["--export-now"]) == 4
     assert "CNINFO_MYSQL_PASSWORD" in capsys.readouterr().err
 
+
+def test_crawl_returns_business_failure_code_for_partial_run(monkeypatch, tmp_path, capsys):
+    from cninfo_chain import __main__ as cli
+
+    class Store:
+        def __init__(self, settings):
+            pass
+
+        def get_run(self, run_id):
+            return {"run_id": run_id, "status": "partial"}
+
+    class Exporter:
+        def __init__(self, store, target):
+            pass
+
+        def export(self, run_id=None):
+            assert run_id == "run-1"
+            return tmp_path / "result.xlsx"
+
+    class Runner:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def crawl_all(self):
+            return "run-1"
+
+    @contextmanager
+    def browser(_):
+        yield object()
+
+    monkeypatch.setattr(cli.Settings, "from_env", lambda: _settings(tmp_path))
+    monkeypatch.setattr(cli, "MySQLStore", Store)
+    monkeypatch.setattr(cli, "XlsxExporter", Exporter)
+    monkeypatch.setattr(cli, "CollectorRunner", Runner)
+    monkeypatch.setattr(cli, "doctor", lambda settings, store: None)
+    monkeypatch.setattr(cli, "connect_browser", browser)
+
+    assert cli.main(["crawl", "--all"]) == 3
+    assert json.loads(capsys.readouterr().out)["status"] == "partial"

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+import pymysql
 import pytest
 
 from cninfo_chain.config import Settings
@@ -142,3 +145,75 @@ def test_information_schema_table_name_is_case_insensitive(settings):
         "crawl_run",
         "company",
     }
+
+
+def test_migrate_creates_missing_database(monkeypatch, settings):
+    store = MySQLStore(settings)
+    calls = []
+    missing_database = pymysql.err.OperationalError(1049, "Unknown database")
+
+    def migrate_target_schema():
+        if not calls:
+            calls.append("missing")
+            raise missing_database
+        calls.append("schema")
+
+    monkeypatch.setattr(store, "_migrate_target_schema", migrate_target_schema)
+    monkeypatch.setattr(store, "_create_database", lambda: calls.append("database"))
+    monkeypatch.setattr(store, "assert_schema_current", lambda: calls.append("assert"))
+
+    store.migrate()
+
+    assert calls == ["missing", "database", "schema", "assert"]
+
+
+def test_create_database_uses_server_connection_and_escapes_identifier(
+    monkeypatch, settings
+):
+    class Cursor:
+        def __init__(self):
+            self.statements = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def execute(self, statement):
+            self.statements.append(statement)
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+            self.committed = 0
+            self.closed = 0
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def commit(self):
+            self.committed += 1
+
+        def rollback(self):
+            raise AssertionError("rollback should not be called")
+
+        def close(self):
+            self.closed += 1
+
+    connection = Connection()
+    captured = {}
+
+    def connect(**kwargs):
+        captured.update(kwargs)
+        return connection
+
+    monkeypatch.setattr("cninfo_chain.storage.pymysql.connect", connect)
+    MySQLStore(replace(settings, mysql_database="not-possible"))._create_database()
+
+    assert "database" not in captured
+    assert connection.committed == 1
+    assert connection.closed == 1
+    assert connection.cursor_instance.statements == [
+        "CREATE DATABASE IF NOT EXISTS `not-possible` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+    ]

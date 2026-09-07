@@ -138,21 +138,21 @@ cninfo-chain-explorer/
 
 - [ ] 建立 chain_list、dynamic_map、chain_info、node_info、company_income、listed_search、non_listed_search 静态注册表。
 - [ ] 对 HTTP、业务 code、ok、字段类型和分页 total/pages/page 做严格校验。
-- [ ] companyIncome 从 data.list.list 读取；上市和非上市检索从 data.companys 读取。
+- [ ] companyIncome 从 data.list.list 读取；上市检索从 data.companys 读取。
 - [ ] 只按 dynamicChainMapNew.children 建树，使用主题级 industry-info 补充节点定义、行业编码和上下游分区。
 - [ ] 节点按上游、中游、下游、其他和父先子后的来源顺序投影；完整路径保留原始名称。
 - [ ] node_definition 直接映射 chain_introduction，不摘要、不改写。
 - [ ] 年报简称映射 secname_one/secname_two；上市映射 companyShortName；非上市简称固定为 NULL。
-- [ ] 节点内合并三类接口和全部分页，再由 MySQL company 表做跨节点、跨主题全局去重。
+- [ ] 节点内合并两类上市接口和全部分页，再由 MySQL company 表做跨节点、跨主题全局去重。
 - [ ] 标识冲突抛出 IDENTITY_CONFLICT，不做模糊合并。
 
 **Acceptance**
 
 - 根目录 fixture：17 个目录、134 个唯一主题。
 - 新能源 fixture：动态树和元数据均为 124 个节点，14 个节点无 industry_code。
-- EVA fixture：年报 9 条、上市 7 条、非上市 71 条，分页为 15/15/15/15/11。
-- 87 条候选合并为 85 个企业。
-- 天洋新材按股票代码合并；苏州优乐赛按 CNINFO 企业 ID 合并且 listing_status=2。
+- EVA fixture：年报 9 条、上市 7 条；非上市 71 条样本仅用于解析校验。
+- 16 条上市候选合并为 15 个企业。
+- 天洋新材按股票代码合并，上市企业结果为 15 个实体。
 - 非上市无明确简称时 company_short_name 为 NULL，不从 fullname 或 stock_name 猜简称。
 
 ---
@@ -180,7 +180,7 @@ cninfo-chain-explorer/
 - 非回环 CDP 地址被拒绝。
 - 桥接结果中出现 cookie、authorization、token、sign、password 等键时立即失败。
 - 登录态 Chrome 上 doctor 成功，输出中不存在认证材料。
-- 根目录接口和 EVA 三类企业接口第一页可以返回有效 JSON。
+- 根目录接口和 EVA 年报、上市企业接口第一页可以返回有效 JSON。
 
 ---
 
@@ -196,7 +196,7 @@ cninfo-chain-explorer/
 **Work**
 
 - [ ] crawl --all 完成全部主题和节点发现后创建新 run_id 和节点任务。
-- [ ] 有行业编码节点依次完成年报、上市、非上市全部分页；无行业编码节点直接提交 committed_empty。
+- [ ] 有行业编码节点依次完成年报和上市全部分页；无行业编码节点直接提交 committed_empty。
 - [ ] 每页响应以确定性文件名原子写入 data/runs/{run_id}，不保存认证材料或逐文件哈希。
 - [ ] 分页和字段校验通过后才调用 MySQL 节点事务。
 - [ ] 网络超时、连接重置、HTTP 408/429/5xx 最多按 2/5/15 秒重试三次。

@@ -14,7 +14,6 @@ from playwright.sync_api import Error as PlaywrightError
 from cninfo_chain.companies import (
     candidates_from_income,
     candidates_from_listed,
-    candidates_from_non_listed,
     merge_companies,
 )
 from cninfo_chain.endpoints import request_parameters
@@ -196,23 +195,15 @@ class CollectorRunner:
 
         income_pages = self._fetch_income_pages(writer, node)
         listed_pages = self._fetch_search_pages(writer, node, "listed_search")
-        non_listed_pages = self._fetch_search_pages(writer, node, "non_listed_search")
         self.store.set_task_status(run_id, node_db_id, "validating")
 
         income_items = validate_pages(income_pages)
         listed_items = validate_pages(listed_pages)
-        non_listed_items = validate_pages(non_listed_pages)
         income_candidates = candidates_from_income(income_items, start_order=0)
         listed_candidates = candidates_from_listed(
             listed_items, start_order=len(income_candidates)
         )
-        non_listed_candidates = candidates_from_non_listed(
-            non_listed_items,
-            start_order=len(income_candidates) + len(listed_candidates),
-        )
-        companies = merge_companies(
-            income_candidates + listed_candidates + non_listed_candidates
-        )
+        companies = merge_companies(income_candidates + listed_candidates)
         self.store.commit_node(run_id, node_db_id, node, companies)
 
     def _fetch_income_pages(

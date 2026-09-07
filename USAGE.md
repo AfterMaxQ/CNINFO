@@ -14,7 +14,7 @@
 
 当前不包含服务端、定时调度、任务队列或管理后台。
 
-公司列只输出当前节点具有上市证据的非空 `company_short_name`：`listing_status=1`（上市）和 `listing_status=2`（上市、非上市接口同时命中）会输出；`listing_status=0` 的非上市企业可以保留在 MySQL 中，但其 `company_short_name` 为 `NULL`，不进入 XLSX 公司列。
+当前采集只请求年报产品和上市公司检索接口。公司列只输出当前节点具有上市证据的非空 `company_short_name`；没有明确简称时写入 `NULL`，不使用企业全称兜底。
 
 企业接口必须分页请求。程序内部使用接口需要的单页大小，并根据响应中的总数和总页数自动遍历所有页面；单页大小不是企业总量限制，用户不需要配置或调整它。
 
@@ -49,32 +49,16 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 项目通过 CDP 连接本机已安装的 Chrome，不需要额外执行 `playwright install`。
 
-## 4. 创建 MySQL 数据库和账号
+## 4. MySQL 自动初始化
 
-建议为采集器使用独立数据库，不要直接使用已有业务库。使用管理员账号进入 MySQL 客户端：
+不需要手工执行 `CREATE DATABASE` 或六张表的建表 SQL。程序使用 `config.yaml` 中的 MySQL 账号，在首次执行 `doctor` 或 `--export-now` 时自动完成：
 
-```powershell
-mysql -u root -p
-```
+1. 目标数据库不存在时，执行 `CREATE DATABASE IF NOT EXISTS`，字符集为 `utf8mb4`。
+2. 目标数据库存在时，直接复用该数据库。
+3. 执行项目 migration，创建六张业务及运行表并写入中文表、字段注释。
+4. 校验表结构和注释，发现部分表或不兼容结构时停止，不删除已有数据。
 
-在 MySQL 客户端中执行以下 SQL，并替换账号密码：
-
-```sql
-CREATE DATABASE IF NOT EXISTS cninfo_chain
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_0900_ai_ci;
-
-CREATE USER IF NOT EXISTS 'cninfo_collector'@'127.0.0.1'
-  IDENTIFIED BY '请替换为采集账号密码';
-
-GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES
-  ON cninfo_chain.*
-  TO 'cninfo_collector'@'127.0.0.1';
-
-FLUSH PRIVILEGES;
-```
-
-如果直接使用配置文件默认的 `root / 12345`，只需确保该账号能够访问目标数据库；生产环境仍建议使用权限范围明确的专用采集账号。
+默认配置使用 `root / 12345`，该账号通常具备建库建表权限。若改用权限受限的专用账号，需要由数据库管理员预先授予建库权限（数据库已存在时至少需要目标库的建表、查询和写入权限）。程序不会创建第二个 MySQL 账号。
 
 首次执行 `doctor` 时，程序会在该数据库中创建以下六张表，并检查表结构和中文注释：
 
@@ -210,15 +194,17 @@ cninfo-chain crawl --all
 
 程序会先读取主题目录和节点树，然后按主题、节点顺序依次采集。每个节点完成接口分页和数量校验后，在一个 MySQL 事务中提交；单个主题的全部节点完成后重建一次 XLSX。
 
-成功时输出类似：
+全部节点成功时输出类似：
 
 ```json
-{"status":"ok","run_id":"<run_id>","export_path":"export\\result.xlsx"}
+{"status":"complete","run_id":"<run_id>","export_path":"export\\result.xlsx"}
 ```
 
 请保存 `run_id`，后续查询状态或恢复运行时需要使用它。
 
 可以使用 `Ctrl+C` 中断当前进程。已提交节点不会回滚，运行会记录为可恢复状态。
+
+如果有节点失败，命令仍会导出当前已成功提交的数据，并输出 `status=partial`，进程返回码为 `3`；使用相同的 `run_id` 执行 `crawl --resume`。
 
 ## 10. 查看运行状态
 
@@ -239,6 +225,15 @@ python -m cninfo_chain status <run_id>
 
 节点任务的成功终态为 `committed` 或 `committed_empty`。恢复运行时，这些节点会跳过。
 
+采集命令的退出码：
+
+| 退出码 | 含义 |
+| ---: | --- |
+| `0` | 运行完整成功（`complete`） |
+| `2` | 登录态失效或手动中断，运行可恢复 |
+| `3` | 运行结束但存在失败节点或数据质量问题（`partial`） |
+| `4` | 配置、MySQL 结构或启动检查错误 |
+
 ## 11. 恢复中断或部分失败的运行
 
 先确保 Chrome 重新登录并通过预检，再使用原来的 `run_id`：
@@ -247,7 +242,7 @@ python -m cninfo_chain status <run_id>
 python -m cninfo_chain crawl --resume <run_id>
 ```
 
-恢复命令只处理该运行中尚未成功提交的节点，不重新创建运行，也不重复采集已经处于成功终态的节点。
+恢复命令只处理该运行中尚未成功提交的节点，不重新创建运行，也不重复采集已经处于成功终态的节点。恢复成功后输出 `status=complete`；仍有失败节点时输出 `status=partial` 并返回 `3`。
 
 如果错误是登录态失效：
 
@@ -289,7 +284,7 @@ python -m cninfo_chain --export-now
 - 一行对应一个产业链节点，不是一家公司一行。
 - 父节点、无企业节点和无行业编码节点仍保留。
 - 公司列只拼接上市证据企业的非空 `company_short_name`，按来源顺序去重后使用顿号连接。
-- 非上市企业的 `company_short_name` 为 `NULL`，不使用 `company_name` 全称代替，也不进入公司列。
+- 若数据库中存在非上市记录，其没有明确简称时 `company_short_name` 为 `NULL`，不使用 `company_name` 全称代替，也不进入公司列。
 - `信源URL` 为当前节点 CNINFO 页面地址，并生成可点击超链接。
 - 每个主题只在该主题第一行填写来源备注。
 

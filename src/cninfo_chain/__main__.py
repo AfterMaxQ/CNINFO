@@ -74,13 +74,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 run_id = runner.crawl_all() if args.all else runner.resume(args.resume)
             path = exporter.export(run_id=run_id)
+            run = store.get_run(run_id)
+            if run is None:
+                raise CollectorError(f"run not found after crawl: {run_id}")
+            status = str(run["status"])
             print(
                 json.dumps(
-                    {"status": "ok", "run_id": run_id, "export_path": str(path)},
+                    {"status": status, "run_id": run_id, "export_path": str(path)},
                     ensure_ascii=False,
                 )
             )
-            return 0
+            return 0 if status == "complete" else 3
         raise ValueError("unknown command")
     except (AuthenticationPaused, KeyboardInterrupt) as error:
         print(safe_error_message(error), file=sys.stderr)

@@ -84,17 +84,22 @@ class MySQLStore:
     def __repr__(self) -> str:
         return f"MySQLStore(settings={self.settings!r})"
 
-    def _connect(self):
-        return pymysql.connect(
-            host=self.settings.mysql_host,
-            port=self.settings.mysql_port,
-            user=self.settings.mysql_user,
-            password=self.settings.mysql_password,
-            database=self.settings.mysql_database,
-            charset="utf8mb4",
-            autocommit=False,
-            cursorclass=pymysql.cursors.DictCursor,
-        )
+    def _connect(self, *, with_database: bool = True):
+        parameters = {
+            "host": self.settings.mysql_host,
+            "port": self.settings.mysql_port,
+            "user": self.settings.mysql_user,
+            "password": self.settings.mysql_password,
+            "charset": "utf8mb4",
+            "autocommit": False,
+            "cursorclass": pymysql.cursors.DictCursor,
+        }
+        if with_database:
+            parameters["database"] = self.settings.mysql_database
+        return pymysql.connect(**parameters)
+
+    def _connect_server(self):
+        return self._connect(with_database=False)
 
     @contextmanager
     def connection(self) -> Iterator[Any]:
@@ -117,6 +122,16 @@ class MySQLStore:
                 connection.commit()
 
     def migrate(self) -> None:
+        try:
+            self._migrate_target_schema()
+        except pymysql.err.OperationalError as error:
+            if not error.args or str(error.args[0]) != "1049":
+                raise
+            self._create_database()
+            self._migrate_target_schema()
+        self.assert_schema_current()
+
+    def _migrate_target_schema(self) -> None:
         with self.connection() as connection:
             existing = self._existing_target_tables(connection)
             if existing and existing != set(TABLE_NAMES):
@@ -134,7 +149,23 @@ class MySQLStore:
                 except BaseException:
                     connection.rollback()
                     raise
-        self.assert_schema_current()
+
+    def _create_database(self) -> None:
+        database = self.settings.mysql_database.replace("`", "``")
+        statement = (
+            f"CREATE DATABASE IF NOT EXISTS `{database}` "
+            "CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+        )
+        connection = self._connect_server()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(statement)
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def create_run(self, run_id: str) -> None:
         with self.transaction() as connection, connection.cursor() as cursor:

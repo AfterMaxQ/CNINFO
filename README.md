@@ -23,7 +23,7 @@ python -m pip install -e ".[test]"
 
 直接编辑项目根目录的 `config.yaml` 并按实际环境填写。默认 MySQL 用户为 `root`、密码为 `12345`；正式运行前请改成实际账号密码。
 
-先创建一个供采集器独占表名的数据库，并授予采集账号建表、查询和写入权限。程序首次执行 `doctor` 时会创建 6 张业务及运行表；遇到部分同名表或不兼容结构时会停止，不会自动删除或修改已有表。
+不需要手工执行建库或建表 SQL。程序首次执行 `doctor` 时会使用配置账号自动创建目标数据库（不存在时）和 6 张业务及运行表，并检查表结构和中文注释；遇到部分同名表或不兼容结构时会停止，不会自动删除或修改已有表。配置账号需要具备建库建表权限。
 
 配置文件的主要内容如下：
 
@@ -112,9 +112,9 @@ cninfo-chain --export-now
 | `crawl_run` | 一次全站采集的状态和导出位置 | 一对多关联 `crawl_node_task` |
 | `crawl_node_task` | 每次运行中每个节点的进度、重试次数和错误 | 连接运行与节点 |
 
-企业先在单个节点内按 CNINFO 企业 ID、股票代码、规范化原名依次去重，再写入全局 `company` 表。企业跨节点或跨主题出现时复用同一企业记录，通过多条 `industry_chain_company` 关系保留各自归属。上市和非上市接口同时命中时，关系及企业的 `listing_status` 为 `2`。
+当前采集只请求年报产品和上市公司检索两类企业接口。企业先在单个节点内按 CNINFO 企业 ID、股票代码、规范化原名依次去重，再写入全局 `company` 表。企业跨节点或跨主题出现时复用同一企业记录，通过多条 `industry_chain_company` 关系保留各自归属。表结构保留 `listing_status` 的完整状态集合，供已有数据和后续接口扩展使用。
 
-`company_short_name` 只映射接口明确提供的简称：年报取 `secname_one/secname_two`，上市检索取 `companyShortName`。非上市接口没有明确简称时写入 `NULL`，企业及节点关系仍正常保存，但不进入当前 XLSX 的公司列。
+`company_short_name` 只映射接口明确提供的简称：年报取 `secname_one/secname_two`，上市检索取 `companyShortName`。没有明确简称时写入 `NULL`，不使用企业全称兜底；当前 XLSX 只输出上市企业的非空简称。
 
 全部 6 张表和 45 个字段都在 MySQL DDL 中带简洁中文 `COMMENT`。字段、约束和联表查询见 [技术设计](docs/superpowers/specs/2026-09-04-cninfo-full-chain-collection-design.md)。
 
@@ -138,7 +138,7 @@ cninfo-chain --export-now
 ```text
 cninfo-chain-explorer/
 ├─ USAGE.md                     完整安装、配置和运行手册
-├─ config.yaml                  MySQL、Chrome、路径和分页配置
+├─ config.yaml                  MySQL、Chrome 和路径配置
 ├─ src/cninfo_chain/             采集、解析、MySQL、Chrome 桥和 XLSX 代码
 ├─ src/cninfo_chain/migrations/  MySQL 顺序 migration
 ├─ scripts/                      Chrome 启动脚本和接口探索工具
@@ -157,6 +157,6 @@ cninfo-chain-explorer/
 python -m pytest -q
 ```
 
-测试使用 `data/raw/` 中的真实脱敏响应校验 134 个主题、124 个新能源节点、企业分页、简称映射、87 条候选合并为 85 家企业、MySQL DDL 注释、事务边界、断点恢复和九字段 XLSX。
+测试使用 `data/raw/` 中的真实脱敏响应校验 134 个主题、124 个新能源节点、企业分页、简称映射、16 条上市候选合并为 15 家企业、MySQL DDL 注释、事务边界、断点恢复和九字段 XLSX。
 
 接口参数和样本说明见 [API 报告](api_report.md) 与 [爬取实现参考](docs/cninfo-crawl-implementation-reference.md)。
