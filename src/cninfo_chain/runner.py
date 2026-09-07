@@ -43,6 +43,7 @@ class CollectorRunner:
         page_size: int,
         sleep: Callable[[float], None] = time.sleep,
         on_theme_complete: Callable[[str], None] | None = None,
+        on_log: Callable[[str], None] | None = None,
     ) -> None:
         self.store = store
         self.browser = browser
@@ -50,25 +51,38 @@ class CollectorRunner:
         self.page_size = page_size
         self.sleep = sleep
         self.on_theme_complete = on_theme_complete
+        self.on_log = on_log
+
+    def _log(self, message: str) -> None:
+        if self.on_log:
+            self.on_log(message)
 
     def crawl_all(self) -> str:
         run_id = str(uuid.uuid4())
+        self._log(f"[开始] 全主题采集，运行 ID：{run_id}")
         writer = RawRunWriter(self.raw_root, run_id)
         root = self._fetch_json(
             writer, "chain_list", request_parameters("chain_list"), "chainlist_ROOT.json"
         )
         chains = parse_chain_list(root)
+        self._log(f"[目录] 读取完成，共 {len(chains)} 个主题")
         nodes_by_chain: dict[str, list[ChainNode]] = {}
-        for chain in chains:
+        for index, chain in enumerate(chains, start=1):
+            self._log(f"[发现 {index}/{len(chains)}] 读取主题：{chain.chain_name}")
             nodes_by_chain[chain.chain_id] = self._discover_theme(writer, chain)
+            self._log(
+                f"[发现 {index}/{len(chains)}] 主题节点：{len(nodes_by_chain[chain.chain_id])} 个"
+            )
 
         self.store.create_run(run_id)
         all_nodes = [node for chain in chains for node in nodes_by_chain[chain.chain_id]]
+        self._log(f"[任务] 已建立 {len(all_nodes)} 个节点任务")
         try:
             node_db_ids = self.store.sync_catalog(run_id, chains, all_nodes)
             complete = self._process_themes(run_id, chains, nodes_by_chain, node_db_ids)
             status = "complete" if complete else "partial"
             self.store.set_run_status(run_id, status)
+            self._log(f"[结束] 全主题采集状态：{status}")
         except AuthenticationPaused as error:
             self.store.set_run_status(run_id, "paused_auth", error_message=str(error))
             self._write_manifest(writer, run_id, len(chains), "paused_auth")
@@ -88,6 +102,7 @@ class CollectorRunner:
         rows = self.store.run_nodes(run_id)
         if not rows:
             raise CollectorError(f"run has no node tasks: {run_id}")
+        self._log(f"[续跑] 运行 ID：{run_id}，共 {len(rows)} 个节点任务")
         self.store.set_run_status(run_id, "running")
         writer = RawRunWriter(self.raw_root, run_id)
         grouped: dict[str, list[tuple[int, ChainNode, str]]] = defaultdict(list)
@@ -102,9 +117,18 @@ class CollectorRunner:
             all_complete = True
             for chain_id, tasks in grouped.items():
                 theme_complete = True
+                completed_count = sum(
+                    task_status in {"committed", "committed_empty"}
+                    for _, _, task_status in tasks
+                )
+                self._log(
+                    f"[续跑] 主题 {chain_names[chain_id]}：跳过 {completed_count} 个已完成节点，"
+                    f"待处理 {len(tasks) - completed_count} 个"
+                )
                 for node_db_id, node, task_status in tasks:
                     if task_status in {"committed", "committed_empty"}:
                         continue
+                    self._log(f"[节点] 开始：{node.node_name}")
                     if not self._collect_with_status(run_id, node_db_id, node):
                         theme_complete = False
                         all_complete = False
@@ -116,6 +140,7 @@ class CollectorRunner:
                         self.on_theme_complete(chain_id)
             status = "complete" if all_complete else "partial"
             self.store.set_run_status(run_id, status)
+            self._log(f"[结束] 续跑状态：{status}")
         except AuthenticationPaused as error:
             self.store.set_run_status(run_id, "paused_auth", error_message=str(error))
             self._write_manifest(writer, run_id, len(grouped), "paused_auth")
@@ -152,10 +177,16 @@ class CollectorRunner:
         node_db_ids: dict[tuple[str, str], int],
     ) -> bool:
         all_complete = True
-        for chain in chains:
+        for theme_index, chain in enumerate(chains, start=1):
             nodes = nodes_by_chain[chain.chain_id]
+            self._log(
+                f"[主题 {theme_index}/{len(chains)}] 开始：{chain.chain_name}（{len(nodes)} 个节点）"
+            )
             theme_complete = True
-            for node in nodes:
+            for node_index, node in enumerate(nodes, start=1):
+                self._log(
+                    f"[节点 {theme_index}.{node_index}/{len(nodes)}] 开始：{node.node_name}"
+                )
                 node_db_id = node_db_ids[(chain.chain_id, node.node_id)]
                 if not self._collect_with_status(run_id, node_db_id, node):
                     all_complete = False
@@ -166,24 +197,30 @@ class CollectorRunner:
                 )
                 if self.on_theme_complete:
                     self.on_theme_complete(chain.chain_id)
+                self._log(f"[主题 {theme_index}/{len(chains)}] 完成：{chain.chain_name}")
+            else:
+                self._log(f"[主题 {theme_index}/{len(chains)}] 未完成：{chain.chain_name}")
         return all_complete
 
     def _collect_with_status(self, run_id: str, node_db_id: int, node: ChainNode) -> bool:
         try:
             self.collect_node(run_id, node_db_id, node)
+            self._log(f"[节点] 完成：{node.node_name}")
             return True
         except AuthenticationPaused:
             raise
         except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as error:
+            message = safe_error_message(error)
             self.store.set_task_status(
                 run_id,
                 node_db_id,
                 "failed",
-                error_message=safe_error_message(error),
+                error_message=message,
                 increment_retry=True,
             )
+            self._log(f"[节点] 失败：{node.node_name}；{message}")
             return False
 
     def collect_node(self, run_id: str, node_db_id: int, node: ChainNode) -> None:

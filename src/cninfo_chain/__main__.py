@@ -16,6 +16,10 @@ from cninfo_chain.runner import CollectorRunner, safe_error_message
 from cninfo_chain.storage import MySQLStore
 
 
+def console_log(message: str) -> None:
+    print(message, file=sys.stderr, flush=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cninfo-chain")
     parser.add_argument(
@@ -47,12 +51,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         settings = Settings.from_env()
         store = MySQLStore(settings)
         if args.export_now:
+            console_log("[导出] 正在从 MySQL 重建 XLSX")
             store.migrate()
             path = XlsxExporter(store, settings.export_path).export()
+            console_log(f"[导出] 完成：{path}")
             print(json.dumps({"status": "ok", "export_path": str(path)}, ensure_ascii=False))
             return 0
         if args.command == "doctor":
+            console_log("[预检] 正在检查 MySQL、Chrome 和 CNINFO 登录态")
             print(json.dumps(doctor(settings, store), ensure_ascii=False))
+            console_log("[预检] 通过")
             return 0
         if args.command == "status":
             store.assert_schema_current()
@@ -62,18 +70,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=False, default=str))
             return 0
         if args.command == "crawl":
+            console_log("[预检] 正在检查 MySQL、Chrome 和 CNINFO 登录态")
             doctor(settings, store)
+            console_log("[预检] 通过")
             exporter = XlsxExporter(store, settings.export_path)
+
+            def export_theme(chain_id: str) -> None:
+                path = exporter.export()
+                console_log(f"[导出] 主题 {chain_id} 已更新：{path}")
+
             with connect_browser(settings.cdp_url) as browser:
                 runner = CollectorRunner(
                     store,
                     browser,
                     settings.raw_dir,
                     page_size=settings.page_size,
-                    on_theme_complete=lambda _: exporter.export(),
+                    on_theme_complete=export_theme,
+                    on_log=console_log,
                 )
                 run_id = runner.crawl_all() if args.all else runner.resume(args.resume)
+            console_log("[导出] 正在生成最终 XLSX")
             path = exporter.export(run_id=run_id)
+            console_log(f"[导出] 最终文件：{path}")
             run = store.get_run(run_id)
             if run is None:
                 raise CollectorError(f"run not found after crawl: {run_id}")
@@ -87,13 +105,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0 if status == "complete" else 3
         raise ValueError("unknown command")
     except (AuthenticationPaused, KeyboardInterrupt) as error:
-        print(safe_error_message(error), file=sys.stderr)
+        console_log(f"[暂停] {safe_error_message(error)}")
         return 2
     except CollectorError as error:
-        print(safe_error_message(error), file=sys.stderr)
+        console_log(f"[错误] {safe_error_message(error)}")
         return 3
     except (ValueError, pymysql.MySQLError, PlaywrightError) as error:
-        print(safe_error_message(error), file=sys.stderr)
+        console_log(f"[启动错误] {safe_error_message(error)}")
         return 4
 
 

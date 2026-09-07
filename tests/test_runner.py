@@ -89,6 +89,23 @@ def test_node_without_industry_code_commits_empty_without_company_calls(tmp_path
     assert store.commits[0][3] == []
 
 
+def test_runner_emits_chinese_node_progress(tmp_path, eva_node):
+    messages = []
+    store = FakeStore()
+    runner = CollectorRunner(
+        store,
+        FakeBrowser([]),
+        tmp_path,
+        page_size=15,
+        sleep=lambda _: None,
+        on_log=messages.append,
+    )
+
+    assert runner._collect_with_status("run-1", 7, replace(eva_node, industry_code=None))
+
+    assert any(message.startswith("[节点] 完成：") for message in messages)
+
+
 def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_node):
     income = load_json("node_A02n019_companyIncome.json")
     listed = load_json("node_A02n019_searchOtherListed.json")
