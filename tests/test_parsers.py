@@ -84,6 +84,31 @@ def test_unknown_dynamic_zone_is_rejected(load_json):
         parse_dynamic_nodes("lsx019", dynamic, metadata)
 
 
+def test_missing_empty_tier_is_treated_as_empty_group():
+    dynamic = {
+        "code": 200,
+        "ok": True,
+        "data": {
+            "tier1": [
+                {
+                    "node_id": "n1",
+                    "node_name": "节点",
+                    "node_pid": None,
+                    "chain_up_down": "上游",
+                    "children": [],
+                }
+            ],
+            "tier2": [],
+            "tier3": [],
+        },
+    }
+    metadata = {"n1": {"industry_code": "A01"}}
+
+    nodes = parse_dynamic_nodes("chain", dynamic, metadata)
+
+    assert [node.node_id for node in nodes] == ["n1"]
+
+
 def test_derived_metadata_not_present_in_tree_is_ignored():
     dynamic = {
         "code": 200,

@@ -171,7 +171,9 @@ def parse_dynamic_nodes(
             )
 
     for group_key, zone, raw_zone in ZONE_GROUPS:
-        roots = _list(data.get(group_key), f"dynamic_map.data.{group_key}")
+        # Some CNINFO themes omit an empty tier instead of returning [].
+        # Preserve strict validation when the field is present with a wrong type.
+        roots = _list(data.get(group_key, []), f"dynamic_map.data.{group_key}")
         for root in roots:
             visit(
                 root,
