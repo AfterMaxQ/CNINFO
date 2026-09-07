@@ -102,7 +102,7 @@ paths:
 配置优先级为：内置默认值 → YAML 文件 → 环境变量。默认读取项目根目录的 `config.yaml`；需要使用其他文件时设置 `CNINFO_CONFIG_FILE`：
 
 ```powershell
-$env:CNINFO_CONFIG_FILE = "D:\cninfo\production.yaml"
+$env:CNINFO_CONFIG_FILE = ".\config.production.yaml"
 ```
 
 环境变量也可以覆盖 YAML 中的具体配置项：
