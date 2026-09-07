@@ -17,7 +17,12 @@ from cninfo_chain.companies import (
     merge_companies,
 )
 from cninfo_chain.endpoints import request_parameters
-from cninfo_chain.errors import ApiBusinessError, AuthenticationPaused, CollectorError
+from cninfo_chain.errors import (
+    ApiBusinessError,
+    AuthenticationPaused,
+    CollectorError,
+    PaginationMismatch,
+)
 from cninfo_chain.models import ChainNode, ChainSeed, PageResult
 from cninfo_chain.parsers import (
     parse_chain_list,
@@ -272,10 +277,16 @@ class CollectorRunner:
         self, writer: RawRunWriter, node: ChainNode, endpoint: str
     ) -> list[PageResult]:
         first = self._fetch_search_page(writer, node, endpoint, 1)
-        return [first] + [
-            self._fetch_search_page(writer, node, endpoint, page)
-            for page in range(2, first.pages + 1)
-        ]
+        pages = [first]
+        for page in range(2, first.pages + 1):
+            current = self._fetch_search_page(writer, node, endpoint, page)
+            if current.page == first.page and current.items == first.items:
+                raise PaginationMismatch(
+                    f"{endpoint} 返回重复的第 1 页（{len(first.items)}/{first.total} 条），"
+                    "当前登录账号可能没有完整分页权限"
+                )
+            pages.append(current)
+        return pages
 
     def _fetch_search_page(
         self,

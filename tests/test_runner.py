@@ -120,6 +120,21 @@ def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_no
     assert store.commits == []
 
 
+def test_repeated_listed_page_reports_access_limit(tmp_path, load_json, eva_node):
+    income = load_json("node_A02n019_companyIncome.json")
+    listed = load_json("node_A02n019_searchOtherListed.json")
+    listed["data"]["total"] = 28
+    listed["data"]["total_page"] = 2
+    browser = FakeBrowser([income, listed, listed])
+    store = FakeStore()
+    runner = CollectorRunner(store, browser, tmp_path, page_size=15, sleep=lambda _: None)
+
+    with pytest.raises(PaginationMismatch, match="没有完整分页权限"):
+        runner.collect_node("run-1", 7, eva_node)
+
+    assert store.commits == []
+
+
 def test_complete_real_fixture_node_commits_15_listed_companies(tmp_path, load_json, eva_node):
     browser = FakeBrowser(
         [
