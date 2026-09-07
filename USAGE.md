@@ -1,6 +1,6 @@
 # CNINFO 产业链采集器使用说明
 
-本文说明当前仓库的安装、配置、启动、采集、恢复和导出方式。所有命令均在项目根目录执行，默认使用 PowerShell。
+本文是当前项目的完整操作手册。请按章节顺序执行，不要跳过“配置”“启动专用 Chrome”和“doctor”步骤。所有命令均在项目根目录 `cninfo-chain-explorer` 执行，示例使用 Windows PowerShell 或 Windows Terminal，不依赖 VSCode。
 
 ## 1. 当前运行方式
 
@@ -27,29 +27,59 @@
 
 Chrome、MySQL 和 Python 应安装在运行采集任务的同一台 Windows 机器上。
 
+项目日常运行不需要管理员权限。只有安装软件或电脑安全策略禁止脚本时，才需要管理员或 IT 协助；不要为了运行采集器把普通终端改成管理员终端。
+
 ## 3. 安装项目
 
-在 PowerShell 中执行：
+在项目根目录的普通 PowerShell 或 Windows Terminal 中执行：
 
 ```powershell
-Set-Location .\cninfo-chain-explorer
-
 py -3.11 -m venv .venv
+```
+
+如果 `py` 命令不存在，改用：
+
+```powershell
+python -m venv .venv
+```
+
+创建环境后，先激活虚拟环境：
+
+```powershell
 .\.venv\Scripts\Activate.ps1
+```
+
+激活成功后，安装项目依赖：
+
+```powershell
 python -m pip install --upgrade pip
 python -m pip install -e ".[test]"
 ```
 
-如果 PowerShell 阻止执行虚拟环境脚本，只对当前窗口临时放开：
+如果 PowerShell 阻止执行虚拟环境脚本，只对当前窗口临时放开（不需要管理员权限），再重复激活命令：
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\.venv\Scripts\Activate.ps1
 ```
 
+如果使用的是 `cmd.exe` 而不是 PowerShell，激活命令改为：
+
+```bat
+.\.venv\Scripts\activate.bat
+```
+
 项目通过 CDP 连接本机已安装的 Chrome，不需要额外执行 `playwright install`。
 
 ## 4. MySQL 自动初始化
+
+采集器不会启动 MySQL 服务本身，请先确认服务正在运行：
+
+```powershell
+Get-Service MySQL* | Select-Object Name, Status
+```
+
+至少有一个 MySQL 服务的 `Status` 为 `Running`。如果服务是 `Stopped`，可在 Windows“服务”中启动；启动系统服务可能需要管理员权限，请联系 IT，不要为了运行采集器修改数据库权限。
 
 不需要手工执行 `CREATE DATABASE` 或六张表的建表 SQL。程序使用 `config.yaml` 中的 MySQL 账号，在首次执行 `doctor` 或 `--export-now` 时自动完成：
 
@@ -150,6 +180,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\scripts\start_cninfo_chrome.ps1
 ```
 
+如果公司组策略仍然禁止脚本，不要反复修改系统执行策略；请让 IT 放行该脚本，或使用公司批准的 PowerShell 终端。项目运行本身不要求管理员权限。
+
 脚本会：
 
 - 使用 `%LOCALAPPDATA%\CNINFOChromeProfile` 作为独立用户目录。
@@ -186,6 +218,12 @@ python -m cninfo_chain doctor
 
 ```powershell
 cninfo-chain doctor
+```
+
+如果没有激活虚拟环境，统一使用项目虚拟环境中的解释器：
+
+```powershell
+.\.venv\Scripts\python.exe -m cninfo_chain doctor
 ```
 
 预检会依次检查：
