@@ -109,12 +109,11 @@ def test_missing_empty_tier_is_treated_as_empty_group():
     assert [node.node_id for node in nodes] == ["n1"]
 
 
-def test_derived_metadata_not_present_in_tree_is_ignored():
+def test_metadata_not_present_in_tree_is_ignored():
     dynamic = {
         "code": 200,
         "ok": True,
         "data": {
-            "tier0": [],
             "tier1": [
                 {
                     "node_id": "n1",
@@ -130,7 +129,7 @@ def test_derived_metadata_not_present_in_tree_is_ignored():
     }
     metadata = {
         "n1": {"industry_code": "A01"},
-        "derived": {"chain_updown": "衍生层", "industry_code": "B01"},
+        "unmounted": {"chain_updown": "上游", "industry_code": "B01"},
     }
 
     nodes = parse_dynamic_nodes("chain", dynamic, metadata)

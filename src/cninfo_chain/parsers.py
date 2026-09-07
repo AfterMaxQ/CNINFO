@@ -185,12 +185,9 @@ def parse_dynamic_nodes(
     metadata_ids = set(metadata)
     missing_dynamic = sorted(metadata_ids - seen)
     if missing_dynamic:
-        non_tree_metadata = [
-            node_id
-            for node_id in missing_dynamic
-            if str(metadata[node_id].get("chain_updown") or "").strip() == "衍生层"
-        ]
-        if len(non_tree_metadata) == len(missing_dynamic):
+        # The dynamic map is the authoritative current tree.  CNINFO may
+        # return additional unmounted metadata records without a path.
+        if seen:
             return result
         missing_metadata = sorted(seen - metadata_ids)
         raise NodeSetMismatch(
