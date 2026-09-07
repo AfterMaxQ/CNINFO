@@ -1,5 +1,5 @@
 (() => {
-  if (window.__cninfoBridge?.version === 2) return;
+  if (window.__cninfoBridge?.version === 3) return;
 
   const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -58,7 +58,7 @@
   };
 
   window.__cninfoBridge = Object.freeze({
-    version: 2,
+    version: 3,
     ready() {
       return templates.size > 0 || Boolean(
         localStorage.getItem("checkToken") && localStorage.getItem("checkSign")
