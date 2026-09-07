@@ -281,10 +281,20 @@ class CollectorRunner:
         for page in range(2, first.pages + 1):
             current = self._fetch_search_page(writer, node, endpoint, page)
             if current.page == first.page and current.items == first.items:
-                raise PaginationMismatch(
-                    f"{endpoint} 返回重复的第 1 页（{len(first.items)}/{first.total} 条），"
-                    "当前登录账号可能没有完整分页权限"
+                self._log(
+                    f"[展示] 节点 {node.node_name} 的 {endpoint} 仅保留当前展示页："
+                    f"{len(first.items)}/{first.total} 条"
                 )
+                return [
+                    PageResult(
+                        endpoint=first.endpoint,
+                        items=first.items,
+                        total=len(first.items),
+                        pages=1,
+                        page=1,
+                        page_size=first.page_size,
+                    )
+                ]
             pages.append(current)
         return pages
 

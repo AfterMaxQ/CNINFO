@@ -120,19 +120,28 @@ def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_no
     assert store.commits == []
 
 
-def test_repeated_listed_page_reports_access_limit(tmp_path, load_json, eva_node):
+def test_repeated_listed_page_commits_visible_rows(tmp_path, load_json, eva_node):
     income = load_json("node_A02n019_companyIncome.json")
     listed = load_json("node_A02n019_searchOtherListed.json")
     listed["data"]["total"] = 28
     listed["data"]["total_page"] = 2
     browser = FakeBrowser([income, listed, listed])
     store = FakeStore()
-    runner = CollectorRunner(store, browser, tmp_path, page_size=15, sleep=lambda _: None)
+    messages = []
+    runner = CollectorRunner(
+        store,
+        browser,
+        tmp_path,
+        page_size=15,
+        sleep=lambda _: None,
+        on_log=messages.append,
+    )
 
-    with pytest.raises(PaginationMismatch, match="没有完整分页权限"):
-        runner.collect_node("run-1", 7, eva_node)
+    runner.collect_node("run-1", 7, eva_node)
 
-    assert store.commits == []
+    assert len(store.commits) == 1
+    assert len(store.commits[0][3]) == 15
+    assert any(message.startswith("[展示] 节点 太阳能EVA胶膜") for message in messages)
 
 
 def test_complete_real_fixture_node_commits_15_listed_companies(tmp_path, load_json, eva_node):
