@@ -120,12 +120,12 @@ def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_no
     assert store.commits == []
 
 
-def test_repeated_listed_page_commits_visible_rows(tmp_path, load_json, eva_node):
+def test_listed_search_commits_visible_first_page(tmp_path, load_json, eva_node):
     income = load_json("node_A02n019_companyIncome.json")
     listed = load_json("node_A02n019_searchOtherListed.json")
     listed["data"]["total"] = 28
     listed["data"]["total_page"] = 2
-    browser = FakeBrowser([income, listed, listed])
+    browser = FakeBrowser([income, listed])
     store = FakeStore()
     messages = []
     runner = CollectorRunner(
@@ -142,6 +142,7 @@ def test_repeated_listed_page_commits_visible_rows(tmp_path, load_json, eva_node
     assert len(store.commits) == 1
     assert len(store.commits[0][3]) == 15
     assert any(message.startswith("[展示] 节点 太阳能EVA胶膜") for message in messages)
+    assert [call[0] for call in browser.calls] == ["company_income", "listed_search"]
 
 
 def test_complete_real_fixture_node_commits_15_listed_companies(tmp_path, load_json, eva_node):

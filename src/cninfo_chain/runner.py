@@ -21,7 +21,6 @@ from cninfo_chain.errors import (
     ApiBusinessError,
     AuthenticationPaused,
     CollectorError,
-    PaginationMismatch,
 )
 from cninfo_chain.models import ChainNode, ChainSeed, PageResult
 from cninfo_chain.parsers import (
@@ -277,14 +276,25 @@ class CollectorRunner:
         self, writer: RawRunWriter, node: ChainNode, endpoint: str
     ) -> list[PageResult]:
         first = self._fetch_search_page(writer, node, endpoint, 1)
+        if endpoint == "listed_search" and first.total > len(first.items):
+            self._log(
+                f"[展示] 节点 {node.node_name} 的 {endpoint} 仅保留当前展示页："
+                f"{len(first.items)}/{first.total} 条"
+            )
+            return [
+                PageResult(
+                    endpoint=first.endpoint,
+                    items=first.items,
+                    total=len(first.items),
+                    pages=1,
+                    page=1,
+                    page_size=first.page_size,
+                )
+            ]
         pages = [first]
         for page in range(2, first.pages + 1):
             current = self._fetch_search_page(writer, node, endpoint, page)
             if current.page == first.page and current.items == first.items:
-                self._log(
-                    f"[展示] 节点 {node.node_name} 的 {endpoint} 仅保留当前展示页："
-                    f"{len(first.items)}/{first.total} 条"
-                )
                 return [
                     PageResult(
                         endpoint=first.endpoint,
