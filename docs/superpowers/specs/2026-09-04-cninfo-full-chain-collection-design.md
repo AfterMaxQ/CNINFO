@@ -182,7 +182,8 @@ Chrome 136 起，远程调试开关不能用于默认数据目录，必须同时
 
 - 树结构只认 `dynamicChainMapNew.children`；`node_pid` 只做一致性校验。
 - 主题级 `industry-info` 按 `cnode_id` 建元数据索引。
-- 动态树与元数据的 ID 集合不一致时，本轮不更新该主题，运行记为 `PARTIAL`，并在日志中记录集合差异。
+- `industry-info` 中仅有 `chain_updown=衍生层` 且未出现在动态树的辅助节点不参与当前树投影；其他 ID 集合差异仍使本主题失败。
+- 除上述辅助节点外，动态树与元数据的 ID 集合不一致时，本轮不更新该主题，运行记为 `PARTIAL`，并在日志中记录集合差异。
 - 无 `industry_code` 节点记为合法终态 `COMMITTED_EMPTY`，保留业务行且不调用企业接口。
 - 未知分区不默认映射为“其他”，节点失败并记录 `UNKNOWN_ZONE`。
 - 一个主题的当前节点全部成功后，才把本次响应中已不存在的旧节点标记为 `disabled`；主题未完成时不禁用旧节点。

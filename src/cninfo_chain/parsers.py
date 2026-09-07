@@ -181,8 +181,15 @@ def parse_dynamic_nodes(
                 raw_zone=raw_zone,
             )
     metadata_ids = set(metadata)
-    if seen != metadata_ids:
-        missing_dynamic = sorted(metadata_ids - seen)
+    missing_dynamic = sorted(metadata_ids - seen)
+    if missing_dynamic:
+        non_tree_metadata = [
+            node_id
+            for node_id in missing_dynamic
+            if str(metadata[node_id].get("chain_updown") or "").strip() == "衍生层"
+        ]
+        if len(non_tree_metadata) == len(missing_dynamic):
+            return result
         missing_metadata = sorted(seen - metadata_ids)
         raise NodeSetMismatch(
             f"node sets differ: dynamic_missing={missing_dynamic}, metadata_missing={missing_metadata}"

@@ -6,10 +6,12 @@ from pathlib import Path
 import pytest
 
 
-def test_settings_use_yaml_defaults_without_environment() -> None:
+def test_settings_use_builtin_defaults_without_config_file(tmp_path: Path) -> None:
     from cninfo_chain.config import Settings
 
-    settings = Settings.from_env({})
+    settings = Settings.from_env(
+        {"CNINFO_CONFIG_FILE": str(tmp_path / "missing-config.yaml")}
+    )
 
     assert settings.mysql_host == "127.0.0.1"
     assert settings.mysql_port == 3306
