@@ -32,7 +32,7 @@ Chrome、MySQL 和 Python 应安装在运行采集任务的同一台 Windows 机
 在 PowerShell 中执行：
 
 ```powershell
-Set-Location E:\深交所产业链\cninfo-chain-explorer
+Set-Location .\cninfo-chain-explorer
 
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -79,7 +79,7 @@ MySQL 的业务状态由 MySQL 数据目录持久化保存，不保存在 Python
 
 直接编辑项目根目录的 `config.yaml`。默认配置为 MySQL `root` 用户、密码 `12345`、数据库 `cninfo_chain`；正式运行前请替换为实际账号密码。
 
-配置文件分为四组：
+配置文件分为3组：
 
 ```yaml
 mysql:
