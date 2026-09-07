@@ -1,6 +1,8 @@
 (() => {
   if (window.__cninfoBridge?.version === 2) return;
 
+  const REQUEST_TIMEOUT_MS = 30_000;
+
   const allowedPaths = new Set([
     "/ics/aasKnowledgeBase/chaincenter/chainlist/list",
     "/ics/aasKnowledgeBase/chaincenter/chainlist/dynamicChainMapNew",
@@ -86,14 +88,21 @@
       } else {
         throw new Error("unsupported request encoding");
       }
-      const response = await originalFetch(request.path, {
-        method: "POST",
-        headers,
-        body,
-        credentials: "include",
-      });
-      const payload = await response.json();
-      return { status: response.status, json: payload };
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const response = await originalFetch(request.path, {
+          method: "POST",
+          headers,
+          body,
+          credentials: "include",
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        return { status: response.status, json: payload };
+      } finally {
+        clearTimeout(timeout);
+      }
     },
   });
 })();
