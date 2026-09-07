@@ -122,6 +122,8 @@ def test_pagination_mismatch_never_calls_node_commit(tmp_path, load_json, eva_no
 
 def test_listed_search_commits_visible_first_page(tmp_path, load_json, eva_node):
     income = load_json("node_A02n019_companyIncome.json")
+    income["data"]["list"]["total"] = 30
+    income["data"]["list"]["pages"] = 2
     listed = load_json("node_A02n019_searchOtherListed.json")
     listed["data"]["total"] = 28
     listed["data"]["total_page"] = 2

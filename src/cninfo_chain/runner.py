@@ -251,6 +251,9 @@ class CollectorRunner:
         self, writer: RawRunWriter, node: ChainNode
     ) -> list[PageResult]:
         first = self._fetch_income_page(writer, node, 1)
+        if first.page == 1:
+            self._log_visible_page(node, first)
+            return [self._as_visible_page(first)]
         return [first] + [
             self._fetch_income_page(writer, node, page)
             for page in range(2, first.pages + 1)
@@ -276,21 +279,9 @@ class CollectorRunner:
         self, writer: RawRunWriter, node: ChainNode, endpoint: str
     ) -> list[PageResult]:
         first = self._fetch_search_page(writer, node, endpoint, 1)
-        if endpoint == "listed_search" and first.total > len(first.items):
-            self._log(
-                f"[展示] 节点 {node.node_name} 的 {endpoint} 仅保留当前展示页："
-                f"{len(first.items)}/{first.total} 条"
-            )
-            return [
-                PageResult(
-                    endpoint=first.endpoint,
-                    items=first.items,
-                    total=len(first.items),
-                    pages=1,
-                    page=1,
-                    page_size=first.page_size,
-                )
-            ]
+        if endpoint == "listed_search" and first.page == 1:
+            self._log_visible_page(node, first)
+            return [self._as_visible_page(first)]
         pages = [first]
         for page in range(2, first.pages + 1):
             current = self._fetch_search_page(writer, node, endpoint, page)
@@ -307,6 +298,24 @@ class CollectorRunner:
                 ]
             pages.append(current)
         return pages
+
+    def _log_visible_page(self, node: ChainNode, page: PageResult) -> None:
+        if page.total > len(page.items):
+            self._log(
+                f"[展示] 节点 {node.node_name} 的 {page.endpoint} 仅保留当前展示页："
+                f"{len(page.items)}/{page.total} 条"
+            )
+
+    @staticmethod
+    def _as_visible_page(page: PageResult) -> PageResult:
+        return PageResult(
+            endpoint=page.endpoint,
+            items=page.items,
+            total=len(page.items),
+            pages=1,
+            page=1,
+            page_size=page.page_size,
+        )
 
     def _fetch_search_page(
         self,
