@@ -196,3 +196,24 @@ def test_empty_search_result_accepts_zero_total_pages_as_one_captured_page():
     )
     assert page.pages == 1
     assert validate_pages([page]) == []
+
+
+def test_empty_company_income_accepts_zero_total_pages_as_one_captured_page():
+    page = parse_company_income_page(
+        {
+            "code": 200,
+            "ok": True,
+            "data": {
+                "list": {
+                    "total": 0,
+                    "pages": 0,
+                    "page_num": 1,
+                    "page_size": 0,
+                    "list": [],
+                }
+            },
+        }
+    )
+
+    assert page.pages == 1
+    assert validate_pages([page]) == []

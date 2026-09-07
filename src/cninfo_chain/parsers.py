@@ -199,14 +199,19 @@ def parse_dynamic_nodes(
 def parse_company_income_page(payload: Any) -> PageResult:
     data = _mapping(_envelope(payload, "company_income"), "company_income.data")
     page_data = _mapping(data.get("list"), "company_income.data.list")
+    total = _integer(page_data.get("total"), "company_income.total")
+    raw_pages = _integer(page_data.get("pages"), "company_income.pages")
+    pages = 1 if total == 0 and raw_pages == 0 else raw_pages
+    if pages < 1:
+        raise SchemaChanged("company_income.pages must be positive for non-empty data")
     return PageResult(
         endpoint="company_income",
         items=tuple(
             dict(_mapping(item, "company_income item"))
             for item in _list(page_data.get("list"), "company_income.data.list.list")
         ),
-        total=_integer(page_data.get("total"), "company_income.total"),
-        pages=_integer(page_data.get("pages"), "company_income.pages"),
+        total=total,
+        pages=pages,
         page=_integer(page_data.get("page_num"), "company_income.page_num"),
         page_size=_integer(page_data.get("page_size"), "company_income.page_size"),
     )
