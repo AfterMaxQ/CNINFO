@@ -11,18 +11,20 @@ EXPECTED_COLUMNS = {
     "company": 8,
     "industry_chain_company": 4,
     "crawl_node_task": 6,
+    "a_share_security": 6,
 }
 
 
 def _migration_sql() -> str:
-    return (
+    return "\n".join(
         files("cninfo_chain")
-        .joinpath("migrations", "001_initial.sql")
+        .joinpath("migrations", name)
         .read_text(encoding="utf-8")
+        for name in ("001_initial.sql", "002_a_share_security.sql")
     )
 
 
-def test_migration_has_six_commented_mysql_tables_and_45_commented_columns():
+def test_migrations_have_seven_commented_mysql_tables_and_51_commented_columns():
     sql = _migration_sql()
     assert "sqlite" not in sql.casefold()
 
@@ -45,7 +47,15 @@ def test_migration_has_six_commented_mysql_tables_and_45_commented_columns():
         assert all(" COMMENT '" in line for line in column_lines)
         column_count += len(column_lines)
 
-    assert column_count == 45
+    assert column_count == 51
+
+
+def test_a_share_migration_has_standard_code_keys_and_comments():
+    sql = _migration_sql()
+    assert "CREATE TABLE `a_share_security`" in sql
+    assert "PRIMARY KEY (`full_code`)" in sql
+    assert "UNIQUE KEY `uk_a_share_akshare_symbol` (`akshare_symbol`)" in sql
+    assert "COMMENT '标准完整代码" in sql
 
 
 def test_migration_declares_the_required_table_links():
@@ -67,4 +77,3 @@ def test_migration_declares_the_required_table_links():
     for table_name, links in required_links.items():
         assert f"CREATE TABLE {table_name}" in sql
         assert all(link in sql for link in links)
-

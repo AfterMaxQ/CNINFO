@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import replace
 
 import pymysql
@@ -7,7 +8,12 @@ import pytest
 
 from cninfo_chain.config import Settings
 from cninfo_chain.models import ChainNode
-from cninfo_chain.storage import EXPORT_QUERY, MySQLStore, aggregate_listing_status
+from cninfo_chain.storage import (
+    EXPORT_QUERY,
+    LEGACY_TABLE_NAMES,
+    MySQLStore,
+    aggregate_listing_status,
+)
 
 
 class FakeConnection:
@@ -165,6 +171,66 @@ def test_migrate_creates_missing_database(monkeypatch, settings):
     store.migrate()
 
     assert calls == ["missing", "database", "schema", "assert"]
+
+
+def test_legacy_six_table_schema_runs_only_reference_migration(monkeypatch, settings):
+    class Cursor:
+        def __init__(self):
+            self.executed = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def execute(self, statement):
+            self.executed.append(statement)
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+            self.committed = 0
+            self.rolled_back = 0
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def commit(self):
+            self.committed += 1
+
+        def rollback(self):
+            self.rolled_back += 1
+
+        def close(self):
+            pass
+
+    connection = Connection()
+    store = MySQLStore(settings)
+    migration_calls = []
+
+    @contextmanager
+    def connection_context():
+        yield connection
+
+    monkeypatch.setattr(store, "connection", connection_context)
+    monkeypatch.setattr(
+        store,
+        "_existing_target_tables",
+        lambda _: set(LEGACY_TABLE_NAMES),
+    )
+
+    def migration_statements(*names):
+        migration_calls.append(names)
+        return ["CREATE TABLE `a_share_security` (...)"]
+
+    monkeypatch.setattr(store, "_migration_statements", migration_statements)
+    store._migrate_target_schema()
+
+    assert migration_calls == [("002_a_share_security.sql",)]
+    assert connection.cursor_instance.executed == ["CREATE TABLE `a_share_security` (...)"]
+    assert connection.committed == 1
+    assert connection.rolled_back == 0
 
 
 def test_create_database_uses_server_connection_and_escapes_identifier(

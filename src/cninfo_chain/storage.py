@@ -21,8 +21,10 @@ TABLE_NAMES = (
     "company",
     "industry_chain_company",
     "crawl_node_task",
+    "a_share_security",
 )
-EXPECTED_COLUMN_COUNT = 45
+LEGACY_TABLE_NAMES = TABLE_NAMES[:-1]
+EXPECTED_COLUMN_COUNT = 51
 TERMINAL_TASK_STATUSES = {"committed", "committed_empty"}
 TASK_STATUSES = {
     "pending",
@@ -134,13 +136,20 @@ class MySQLStore:
     def _migrate_target_schema(self) -> None:
         with self.connection() as connection:
             existing = self._existing_target_tables(connection)
-            if existing and existing != set(TABLE_NAMES):
+            allowed = (set(LEGACY_TABLE_NAMES), set(TABLE_NAMES))
+            if existing and all(existing != candidate for candidate in allowed):
                 raise SchemaConflict(
                     "target schema contains only part of the CNINFO tables: "
                     + ", ".join(sorted(existing))
                 )
             if not existing:
-                statements = self._migration_statements()
+                migration_names = ("001_initial.sql", "002_a_share_security.sql")
+            elif existing == set(LEGACY_TABLE_NAMES):
+                migration_names = ("002_a_share_security.sql",)
+            else:
+                migration_names = ()
+            if migration_names:
+                statements = self._migration_statements(*migration_names)
                 try:
                     with connection.cursor() as cursor:
                         for statement in statements:
@@ -487,7 +496,7 @@ class MySQLStore:
         with self.connection() as connection:
             tables = self._existing_target_tables(connection)
             if tables != set(TABLE_NAMES):
-                raise SchemaChanged("CNINFO schema must contain exactly the six required tables")
+                raise SchemaChanged("CNINFO schema must contain exactly the seven required tables")
             placeholders = ", ".join(["%s"] * len(TABLE_NAMES))
             with connection.cursor() as cursor:
                 cursor.execute(
@@ -529,10 +538,15 @@ class MySQLStore:
             }
 
     @staticmethod
-    def _migration_statements() -> list[str]:
-        sql = (
-            files("cninfo_chain")
-            .joinpath("migrations", "001_initial.sql")
-            .read_text(encoding="utf-8")
-        )
-        return [statement.strip() for statement in sql.split(";") if statement.strip()]
+    def _migration_statements(*migration_names: str) -> list[str]:
+        statements: list[str] = []
+        for migration_name in migration_names:
+            sql = (
+                files("cninfo_chain")
+                .joinpath("migrations", migration_name)
+                .read_text(encoding="utf-8")
+            )
+            statements.extend(
+                statement.strip() for statement in sql.split(";") if statement.strip()
+            )
+        return statements
