@@ -546,6 +546,27 @@ class MySQLStore:
             row = cursor.fetchone() or {}
         return int(row.get("total") or 0)
 
+    def list_company_stock_codes(self) -> list[dict[str, Any]]:
+        with self.connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT id, stock_code FROM company ORDER BY id")
+            return list(cursor.fetchall())
+
+    def update_company_stock_codes(self, changes: Sequence[Any]) -> int:
+        updated = 0
+        with self.transaction() as connection, connection.cursor() as cursor:
+            for change in changes:
+                cursor.execute(
+                    "UPDATE company SET stock_code=%s, updated_at=%s "
+                    "WHERE id=%s AND stock_code=%s",
+                    (change.new_value, _utc_now(), change.company_id, change.old_value),
+                )
+                updated += cursor.rowcount
+            if updated != len(changes):
+                raise ValueError(
+                    f"stock code cleanup changed {updated} rows, expected {len(changes)}"
+                )
+        return updated
+
     def assert_schema_current(self) -> None:
         with self.connection() as connection:
             tables = self._existing_target_tables(connection)
