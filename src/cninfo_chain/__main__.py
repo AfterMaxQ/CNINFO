@@ -12,7 +12,12 @@ from cninfo_chain.browser import connect_browser, doctor
 from cninfo_chain.config import Settings
 from cninfo_chain.errors import AuthenticationPaused, CollectorError
 from cninfo_chain.exporter import XlsxExporter
+from cninfo_chain.reference import (
+    build_reference_preview,
+    replace_reference_table,
+)
 from cninfo_chain.runner import CollectorRunner, safe_error_message
+from cninfo_chain.securities import load_akshare_rows, parse_akshare_rows
 from cninfo_chain.storage import MySQLStore
 
 
@@ -35,7 +40,53 @@ def build_parser() -> argparse.ArgumentParser:
     mode.add_argument("--resume", metavar="RUN_ID", help="恢复指定运行")
     status = commands.add_parser("status", help="查看运行状态")
     status.add_argument("run_id")
+    reference = commands.add_parser("reference", help="初始化或刷新本地 A 股证券参考表")
+    reference_commands = reference.add_subparsers(dest="reference_command", required=True)
+    reference_commands.add_parser("init", help="首次初始化参考表")
+    reference_commands.add_parser("refresh", help="重新抓取并刷新参考表")
     return parser
+
+
+def _print_reference_preview(preview) -> None:
+    console_log(
+        "[参考表] 预览：总数={total}，沪={sh}，深={sz}，北={bj}，"
+        "无效={invalid}，重复={duplicate}".format(
+            total=preview.total,
+            sh=preview.sh_count,
+            sz=preview.sz_count,
+            bj=preview.bj_count,
+            invalid=preview.invalid_count,
+            duplicate=preview.duplicate_count,
+        )
+    )
+    for row in preview.sample_rows:
+        console_log(
+            f"[参考表] 示例：{row.security_name} {row.full_code} {row.akshare_symbol}"
+        )
+
+
+def _run_reference_command(store: MySQLStore, command: str) -> int:
+    store.migrate()
+    existing_count = store.a_share_security_count()
+    if command == "init" and existing_count:
+        raise CollectorError(
+            f"A 股参考表已有 {existing_count} 条记录，请使用 reference refresh"
+        )
+    console_log("[参考表] 正在读取 AkShare A 股列表")
+    rows = parse_akshare_rows(load_akshare_rows())
+    preview = build_reference_preview(rows)
+    _print_reference_preview(preview)
+    try:
+        answer = input("[参考表] 确认写入请输入 CONFIRM，其他输入取消：").strip()
+    except EOFError:
+        answer = ""
+    if answer != "CONFIRM":
+        console_log("[取消] 未写入参考表")
+        return 2
+    written = replace_reference_table(store, rows)
+    console_log(f"[参考表] 写入完成：{written} 条")
+    print(json.dumps({"status": "ok", "count": written}, ensure_ascii=False))
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -69,6 +120,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise CollectorError(f"run not found: {args.run_id}")
             print(json.dumps(result, ensure_ascii=False, default=str))
             return 0
+        if args.command == "reference":
+            return _run_reference_command(store, args.reference_command)
         if args.command == "crawl":
             console_log("[预检] 正在检查 MySQL、Chrome 和 CNINFO 登录态")
             doctor(settings, store)

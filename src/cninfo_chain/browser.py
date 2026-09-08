@@ -129,10 +129,13 @@ def doctor(settings: Settings, store: MySQLStore | None = None) -> dict[str, Any
         if str(result["json"].get("code")) in {"401", "403"}:
             raise AuthenticationPaused("CNINFO login is no longer valid")
         chains = parse_chain_list(result["json"])
+    reference_count = active_store.a_share_security_count()
     return {
         "status": "ok",
         "cdp_url": validate_cdp_url(settings.cdp_url),
         "mysql_host": settings.mysql_host,
         "mysql_database": settings.mysql_database,
         "theme_count": len(chains),
+        "a_share_security_count": reference_count,
+        "a_share_security_ready": reference_count > 0,
     }
