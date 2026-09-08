@@ -492,6 +492,60 @@ class MySQLStore:
             cursor.execute(EXPORT_QUERY)
             return list(cursor.fetchall())
 
+    def replace_a_share_security(self, rows: Sequence[Any]) -> int:
+        if not rows:
+            raise ValueError("a_share_security rows must not be empty")
+        values = [
+            (
+                row.full_code,
+                row.stock_code,
+                row.exchange,
+                row.security_name,
+                row.akshare_symbol,
+                _utc_now(),
+            )
+            for row in rows
+        ]
+        with self.transaction() as connection, connection.cursor() as cursor:
+            cursor.execute("DELETE FROM a_share_security")
+            cursor.executemany(
+                "INSERT INTO a_share_security "
+                "(full_code, stock_code, exchange, security_name, akshare_symbol, updated_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s)",
+                values,
+            )
+        return len(values)
+
+    def find_a_share_security(
+        self,
+        *,
+        stock_code: str | None = None,
+        security_name: str | None = None,
+    ) -> list[dict[str, Any]]:
+        clauses: list[str] = []
+        values: list[str] = []
+        if stock_code is not None:
+            clauses.append("stock_code=%s")
+            values.append(stock_code)
+        if security_name is not None:
+            clauses.append("security_name=%s")
+            values.append(security_name)
+        if not clauses:
+            raise ValueError("stock_code or security_name is required")
+        with self.connection() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT full_code, stock_code, exchange, security_name, akshare_symbol "
+                "FROM a_share_security WHERE " + " AND ".join(clauses) + " ORDER BY full_code",
+                values,
+            )
+            return list(cursor.fetchall())
+
+    def a_share_security_count(self) -> int:
+        with self.connection() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS total FROM a_share_security")
+            row = cursor.fetchone() or {}
+        return int(row.get("total") or 0)
+
     def assert_schema_current(self) -> None:
         with self.connection() as connection:
             tables = self._existing_target_tables(connection)
