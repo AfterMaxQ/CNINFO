@@ -13,4 +13,5 @@ def normalize_short_name(value: str | None) -> str | None:
     if value is None:
         return None
     normalized = normalize_company_name(value)
+    normalized = normalized.replace("*", "")
     return normalized or None

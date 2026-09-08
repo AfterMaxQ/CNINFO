@@ -125,6 +125,15 @@ def test_exporter_writes_exact_nine_columns_and_only_listed_short_names(tmp_path
     assert store.export_updates == [("run-1", str(target))]
 
 
+def test_exporter_removes_asterisk_but_keeps_st_prefix(tmp_path):
+    target = tmp_path / "result.xlsx"
+    rows = _rows()
+    rows[4]["company_short_name"] = "*ST优乐赛"
+    XlsxExporter(FakeStore(rows), target).export()
+    workbook = load_workbook(target)
+    assert workbook.active.cell(3, 7).value == "福斯特、ST优乐赛"
+
+
 def test_locked_target_does_not_replace_existing_file(monkeypatch, tmp_path):
     target = tmp_path / "result.xlsx"
     target.write_bytes(b"existing")

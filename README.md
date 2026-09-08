@@ -119,7 +119,7 @@ python scripts/clean_stock_codes.py --execute
 cninfo-chain --export-now
 ```
 
-清洗脚本只更新 `company.stock_code` 中可安全得到的六位代码，不修改证券名称；产业链采集和导出不会自动访问 AkShare。
+清洗脚本只更新 `company.stock_code` 中可安全得到的六位代码，并过滤 `company_short_name` 中的 `*`（保留 `ST`），不修改企业全称；产业链采集和导出不会自动访问 AkShare。
 
 节点完成后立即提交 MySQL。一个主题的全部节点成功后会原子重建一次 XLSX，全站完成后再生成最终文件。若 XLSX 正被 Excel 占用，数据库提交不受影响；关闭文件后执行 `--export-now` 即可。
 
@@ -152,7 +152,7 @@ cninfo-chain --export-now
 - 一行对应一个节点，不是一家企业一行。
 - 分类1为 `上游/中游/下游/其他`，节点路径依次写入分类2至分类4。
 - 父节点、无企业节点和无行业编码节点都保留。
-- 公司列只写当前节点具有上市证据（`listing_status` 为 `1` 或 `2`）的非空 `company_short_name`，按来源顺序去重后用顿号连接；不使用企业全称兜底。
+- 公司列只写当前节点具有上市证据（`listing_status` 为 `1` 或 `2`）的非空 `company_short_name`，按来源顺序去重后用顿号连接；过滤 `*` 但保留 `ST`，不使用企业全称兜底。
 - 企业接口按响应总页数自动采集全部页面，单页请求大小不是企业总量限制。
 - 信源 URL 是可点击超链接；每个主题只有首行填写备注。
 

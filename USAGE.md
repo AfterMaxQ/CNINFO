@@ -14,7 +14,7 @@
 
 当前不包含服务端、定时调度、任务队列或管理后台。
 
-当前采集只请求年报产品和上市公司检索接口。公司列只输出当前节点具有上市证据的非空 `company_short_name`；没有明确简称时写入 `NULL`，不使用企业全称兜底。
+当前采集只请求年报产品和上市公司检索接口。公司列只输出当前节点具有上市证据的非空 `company_short_name`；输出前过滤 `*` 但保留 `ST`，没有明确简称时写入 `NULL`，不使用企业全称兜底。
 
 企业接口必须分页请求。程序内部使用接口需要的单页大小，并根据响应中的总数和总页数自动遍历所有页面；单页大小不是企业总量限制，用户不需要配置或调整它。
 
@@ -265,7 +265,7 @@ python scripts/clean_stock_codes.py --preview
 python scripts/clean_stock_codes.py --execute
 ```
 
-执行模式会再次显示预览，并要求输入 `CLEAN`。脚本只更新 `company.stock_code` 中能安全得到的六位代码，不修改证券名称；非法或空值会保留并列入异常清单。清洗完成后重新导出：
+执行模式会再次显示预览，并要求输入 `CLEAN`。脚本只更新 `company.stock_code` 中能安全得到的六位代码，并过滤 `company_short_name` 中的 `*`（保留 `ST`），不修改企业全称；非法或空值会保留并列入异常清单。清洗完成后重新导出：
 
 ```powershell
 python -m cninfo_chain --export-now
@@ -376,7 +376,7 @@ python -m cninfo_chain --export-now
 
 - 一行对应一个产业链节点，不是一家公司一行。
 - 父节点、无企业节点和无行业编码节点仍保留。
-- 公司列只拼接上市证据企业的非空 `company_short_name`，按来源顺序去重后使用顿号连接。
+- 公司列只拼接上市证据企业的非空 `company_short_name`，按来源顺序去重后使用顿号连接；过滤 `*` 但保留 `ST`。
 - 若数据库中存在非上市记录，其没有明确简称时 `company_short_name` 为 `NULL`，不使用 `company_name` 全称代替，也不进入公司列。
 - `信源URL` 为当前节点 CNINFO 页面地址，并生成可点击超链接。
 - 每个主题只在该主题第一行填写来源备注。

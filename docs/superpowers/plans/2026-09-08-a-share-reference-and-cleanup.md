@@ -15,7 +15,7 @@
 - 标准完整代码必须是六位数字加 `.SH`、`.SZ` 或 `.BJ`，例如 `600519.SH`。
 - AkShare 代码必须是小写交易所前缀加六位数字，例如 `sh600519`。
 - `company.stock_code` 继续保存清洗后的 CNINFO 原始六位代码；标准完整代码来自 `a_share_security.full_code`。
-- 清洗代码字段中的 `*`、空白和明确交易所前缀；不得清洗证券名称中的 `*ST`。
+- 清洗代码字段中的 `*`、空白和明确交易所前缀；公司简称字段只过滤 `*`，保留 `ST`。
 - `crawl`、`resume` 和 `--export-now` 不得调用 AkShare。
 - 参考表写入必须先完成整批校验；失败时保留旧数据。
 - 旧数据清洗必须默认只读预览，执行前再次展示摘要，并在一个 MySQL 事务中提交。
@@ -266,13 +266,15 @@ git commit -m "feat: add A-share reference commands"
 
 **Interfaces:**
 - `StockCodeChange` fields: `company_id: int`, `old_value: str | None`, `new_value: str | None`, `reason: str`.
+- `ShortNameChange` fields: `company_id: int`, `old_value: str`, `new_value: str`, `reason: str`.
 - `preview_stock_code_cleanup(store: MySQLStore) -> tuple[list[StockCodeChange], list[StockCodeChange]]` returns `(changes, invalid)` without writing.
-- `execute_stock_code_cleanup(store: MySQLStore, changes: Sequence[StockCodeChange]) -> int` updates only the supplied IDs inside one transaction.
+- `preview_short_name_cleanup(store: MySQLStore) -> list[ShortNameChange]` finds only names containing `*`.
+- `execute_company_cleanup(store: MySQLStore, stock_code_changes: Sequence[StockCodeChange], short_name_changes: Sequence[ShortNameChange]) -> int` updates both fields inside one transaction.
 - Script modes: `python scripts/clean_stock_codes.py --preview` and `python scripts/clean_stock_codes.py --execute`.
 
 - [ ] **Step 1: Write cleanup tests**
 
-Use fake rows for `*600519`, ` sh600519 `, `*ST`, `None`, and `000001`; assert only the first two become six-digit values, invalid rows remain untouched, preview performs no `UPDATE`, and an exception causes rollback.
+Use fake rows for `*600519`, ` sh600519 `, `*ST`, `None`, and `000001`, plus a `company_short_name` value `*ST示例`; assert only the first two become six-digit values, the name becomes `ST示例`, invalid codes remain untouched, preview performs no `UPDATE`, and an exception causes rollback.
 
 - [ ] **Step 2: Run cleanup tests to verify failure**
 
@@ -284,7 +286,7 @@ Expected: FAIL because the cleanup module and script do not exist.
 
 - [ ] **Step 3: Implement the preview and transactional update**
 
-Read `id` and `stock_code` only. Reuse `clean_cninfo_stock_code`; never read or update names. `--preview` exits after the summary. `--execute` prints the same summary, asks the user to type `CLEAN`, then calls one transaction; any other input exits without writing.
+Read `id`, `stock_code`, and `company_short_name`. Reuse `clean_cninfo_stock_code` for codes and `normalize_short_name` for abbreviations; never update `company_name`. `--preview` exits after the summary. `--execute` prints the same summary, asks the user to type `CLEAN`, then calls one transaction; any other input exits without writing.
 
 - [ ] **Step 4: Implement the Windows-friendly script entrypoint**
 

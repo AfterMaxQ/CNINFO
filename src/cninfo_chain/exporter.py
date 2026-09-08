@@ -10,6 +10,7 @@ from typing import Any
 from openpyxl import Workbook, load_workbook
 
 from cninfo_chain.errors import CompanyCellTooLong, ExportLocked
+from cninfo_chain.normalization import normalize_short_name
 
 
 HEADERS = (
@@ -70,7 +71,7 @@ class XlsxExporter:
             for row in node_rows:
                 if row.get("listing_status") not in {1, 2}:
                     continue
-                short_name = row.get("company_short_name")
+                short_name = normalize_short_name(row.get("company_short_name"))
                 if short_name and short_name not in seen_companies:
                     seen_companies.add(short_name)
                     companies.append(str(short_name))

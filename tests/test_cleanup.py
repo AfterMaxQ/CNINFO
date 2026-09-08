@@ -4,7 +4,10 @@ import pytest
 
 from cninfo_chain.cleanup import (
     StockCodeChange,
+    ShortNameChange,
+    execute_company_cleanup,
     execute_stock_code_cleanup,
+    preview_short_name_cleanup,
     preview_stock_code_cleanup,
 )
 
@@ -25,6 +28,10 @@ class FakeStore:
 
     def update_company_stock_codes(self, changes):
         self.updated = list(changes)
+        return len(self.updated)
+
+    def update_company_cleanup(self, code_changes, short_name_changes):
+        self.updated = list(code_changes) + list(short_name_changes)
         return len(self.updated)
 
 
@@ -50,3 +57,19 @@ def test_execute_empty_changes_is_noop():
     store = FakeStore()
     assert execute_stock_code_cleanup(store, []) == 0
     assert store.updated is None
+
+
+def test_preview_short_name_cleanup_removes_marker_but_keeps_st():
+    store = FakeStore()
+    store.rows[0]["company_short_name"] = "*ST示例"
+    changes = preview_short_name_cleanup(store)
+    assert changes == [ShortNameChange(1, "*ST示例", "ST示例", "remove name marker")]
+
+
+def test_execute_company_cleanup_updates_codes_and_short_names_atomically():
+    store = FakeStore()
+    code_changes, _ = preview_stock_code_cleanup(store)
+    store.rows[0]["company_short_name"] = "*ST示例"
+    short_changes = preview_short_name_cleanup(store)
+    assert execute_company_cleanup(store, code_changes, short_changes) == 3
+    assert store.updated == code_changes + short_changes

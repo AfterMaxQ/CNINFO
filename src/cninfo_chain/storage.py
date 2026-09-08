@@ -548,22 +548,44 @@ class MySQLStore:
 
     def list_company_stock_codes(self) -> list[dict[str, Any]]:
         with self.connection() as connection, connection.cursor() as cursor:
-            cursor.execute("SELECT id, stock_code FROM company ORDER BY id")
+            cursor.execute(
+                "SELECT id, stock_code, company_short_name FROM company ORDER BY id"
+            )
             return list(cursor.fetchall())
 
     def update_company_stock_codes(self, changes: Sequence[Any]) -> int:
+        return self.update_company_cleanup(changes, ())
+
+    def update_company_short_names(self, changes: Sequence[Any]) -> int:
+        return self.update_company_cleanup((), changes)
+
+    def update_company_cleanup(
+        self,
+        stock_code_changes: Sequence[Any],
+        short_name_changes: Sequence[Any],
+    ) -> int:
+        if not stock_code_changes and not short_name_changes:
+            return 0
         updated = 0
         with self.transaction() as connection, connection.cursor() as cursor:
-            for change in changes:
+            for change in stock_code_changes:
                 cursor.execute(
                     "UPDATE company SET stock_code=%s, updated_at=%s "
                     "WHERE id=%s AND stock_code=%s",
                     (change.new_value, _utc_now(), change.company_id, change.old_value),
                 )
                 updated += cursor.rowcount
-            if updated != len(changes):
+            for change in short_name_changes:
+                cursor.execute(
+                    "UPDATE company SET company_short_name=%s, updated_at=%s "
+                    "WHERE id=%s AND company_short_name=%s",
+                    (change.new_value, _utc_now(), change.company_id, change.old_value),
+                )
+                updated += cursor.rowcount
+            expected = len(stock_code_changes) + len(short_name_changes)
+            if updated != expected:
                 raise ValueError(
-                    f"stock code cleanup changed {updated} rows, expected {len(changes)}"
+                    f"company cleanup changed {updated} rows, expected {expected}"
                 )
         return updated
 
