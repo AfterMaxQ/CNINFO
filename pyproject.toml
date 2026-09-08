@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=9,<10"]
+reference = ["akshare>=1.18,<2"]
 
 [project.scripts]
 cninfo-chain = "cninfo_chain.__main__:main"

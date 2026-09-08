@@ -55,7 +55,7 @@ python -m venv .venv
 
 ```powershell
 python -m pip install --upgrade pip
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test,reference]"
 ```
 
 如果 PowerShell 阻止执行虚拟环境脚本，只对当前窗口临时放开（不需要管理员权限），再重复激活命令：
@@ -83,16 +83,16 @@ Get-Service MySQL* | Select-Object Name, Status
 
 至少有一个 MySQL 服务的 `Status` 为 `Running`。如果服务是 `Stopped`，可在 Windows“服务”中启动；启动系统服务可能需要管理员权限，请联系 IT，不要为了运行采集器修改数据库权限。
 
-不需要手工执行 `CREATE DATABASE` 或六张表的建表 SQL。程序使用 `config.yaml` 中的 MySQL 账号，在首次执行 `doctor` 或 `--export-now` 时自动完成：
+不需要手工执行 `CREATE DATABASE` 或七张表的建表 SQL。程序使用 `config.yaml` 中的 MySQL 账号，在首次执行 `doctor` 或 `--export-now` 时自动完成：
 
 1. 目标数据库不存在时，执行 `CREATE DATABASE IF NOT EXISTS`，字符集为 `utf8mb4`。
 2. 目标数据库存在时，直接复用该数据库。
-3. 执行项目 migration，创建六张业务及运行表并写入中文表、字段注释。
+3. 执行项目 migration，创建七张业务及运行表并写入中文表、字段注释。
 4. 校验表结构和注释，发现部分表或不兼容结构时停止，不删除已有数据。
 
 默认配置使用 `root / 12345`，该账号通常具备建库建表权限。若改用权限受限的专用账号，需要由数据库管理员预先授予建库权限（数据库已存在时至少需要目标库的建表、查询和写入权限）。程序不会创建第二个 MySQL 账号。
 
-首次执行 `doctor` 时，程序会在该数据库中创建以下六张表，并检查表结构和中文注释：
+首次执行 `doctor` 时，程序会在该数据库中创建以下七张表，并检查表结构和中文注释：
 
 | 表 | 作用 |
 | --- | --- |
@@ -102,6 +102,7 @@ Get-Service MySQL* | Select-Object Name, Status
 | `industry_chain_company` | 节点与企业的当前关系、来源顺序和节点级上市状态 |
 | `crawl_run` | 一次采集运行的状态和导出位置 |
 | `crawl_node_task` | 运行中每个节点的状态、重试次数和错误信息 |
+| `a_share_security` | 当前 A 股证券名称、标准完整代码和 AkShare 代码映射 |
 
 如果目标数据库中只存在部分采集器表，或表结构/字段注释不符合当前 migration，程序会停止并提示错误，不会自动删除已有表。
 
@@ -231,12 +232,44 @@ cninfo-chain doctor
 预检会依次检查：
 
 1. MySQL 连接。
-2. 六张表是否存在且结构、中文注释正确；首次运行时执行 migration。
+2. 七张表是否存在且结构、中文注释正确；首次运行时执行 migration。
 3. Chrome CDP 是否可连接。
 4. 页面内桥接是否就绪。
 5. CNINFO 登录态和根目录主题接口是否可用。
 
 成功时返回 JSON，`status` 为 `ok`。预检失败时先按错误信息处理，不要直接开始全站采集。
+
+### 8.1 初始化 A 股参考表和清洗旧代码
+
+首次建立本地 A 股证券参考表时执行：
+
+```powershell
+python -m cninfo_chain reference init
+```
+
+程序会从 AkShare 读取一次沪、深、北交所证券列表，显示总数和示例，输入 `CONFIRM` 后才写入 MySQL。参考表已有数据时，使用：
+
+```powershell
+python -m cninfo_chain reference refresh
+```
+
+产业链采集、续跑和 `--export-now` 不会自动访问 AkShare。旧企业代码清洗必须先预览：
+
+```powershell
+python scripts/clean_stock_codes.py --preview
+```
+
+确认预览中的数量和示例后，再执行：
+
+```powershell
+python scripts/clean_stock_codes.py --execute
+```
+
+执行模式会再次显示预览，并要求输入 `CLEAN`。脚本只更新 `company.stock_code` 中能安全得到的六位代码，不修改证券名称；非法或空值会保留并列入异常清单。清洗完成后重新导出：
+
+```powershell
+python -m cninfo_chain --export-now
+```
 
 ## 9. 全主题采集
 
@@ -383,7 +416,7 @@ export/result.xlsx        # 当前数据库状态生成的九字段 XLSX
 - 9222 端口没有被其他进程占用。
 - `CNINFO_CDP_URL` 没有改成远程地址或其他端口。
 
-### 提示 `CNINFO schema must contain exactly the six required tables`
+### 提示 `CNINFO schema must contain exactly the seven required tables`
 
 目标数据库已有部分表或结构不匹配。选择一个专用空数据库重新配置 `CNINFO_MYSQL_DATABASE`，不要在已有业务表上直接改名或删除。
 

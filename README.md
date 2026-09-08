@@ -16,14 +16,14 @@
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[test]"
+python -m pip install -e ".[test,reference]"
 ```
 
 ## 配置文件和 MySQL
 
 直接编辑项目根目录的 `config.yaml` 并按实际环境填写。默认 MySQL 用户为 `root`、密码为 `12345`；正式运行前请改成实际账号密码。
 
-不需要手工执行建库或建表 SQL。程序首次执行 `doctor` 时会使用配置账号自动创建目标数据库（不存在时）和 6 张业务及运行表，并检查表结构和中文注释；遇到部分同名表或不兼容结构时会停止，不会自动删除或修改已有表。配置账号需要具备建库建表权限。
+不需要手工执行建库或建表 SQL。程序首次执行 `doctor` 时会使用配置账号自动创建目标数据库（不存在时）和 7 张业务及运行表，并检查表结构和中文注释；遇到部分同名表或不兼容结构时会停止，不会自动删除或修改已有表。配置账号需要具备建库建表权限。
 
 配置文件的主要内容如下：
 
@@ -99,6 +99,28 @@ cninfo-chain status <run_id>
 cninfo-chain --export-now
 ```
 
+初始化本地 A 股证券参考表（AkShare 只在该命令中访问）：
+
+```powershell
+cninfo-chain reference init
+```
+
+参考表已有数据时，使用显式刷新命令：
+
+```powershell
+cninfo-chain reference refresh
+```
+
+一次性清洗旧企业代码时，先预览再执行：
+
+```powershell
+python scripts/clean_stock_codes.py --preview
+python scripts/clean_stock_codes.py --execute
+cninfo-chain --export-now
+```
+
+清洗脚本只更新 `company.stock_code` 中可安全得到的六位代码，不修改证券名称；产业链采集和导出不会自动访问 AkShare。
+
 节点完成后立即提交 MySQL。一个主题的全部节点成功后会原子重建一次 XLSX，全站完成后再生成最终文件。若 XLSX 正被 Excel 占用，数据库提交不受影响；关闭文件后执行 `--export-now` 即可。
 
 ## 数据表联动
@@ -111,12 +133,13 @@ cninfo-chain --export-now
 | `industry_chain_company` | 节点与企业的当前关系、节点级上市状态和来源顺序 | 连接 `industry_chain_node` 与 `company` |
 | `crawl_run` | 一次全站采集的状态和导出位置 | 一对多关联 `crawl_node_task` |
 | `crawl_node_task` | 每次运行中每个节点的进度、重试次数和错误 | 连接运行与节点 |
+| `a_share_security` | 当前 A 股证券名称、标准完整代码和 AkShare 代码映射 | 通过代码或名称供本地匹配，不与产业链企业表建立外键 |
 
 当前采集只请求年报产品和上市公司检索两类企业接口。企业先在单个节点内按 CNINFO 企业 ID、股票代码、规范化原名依次去重，再写入全局 `company` 表。企业跨节点或跨主题出现时复用同一企业记录，通过多条 `industry_chain_company` 关系保留各自归属。表结构保留 `listing_status` 的完整状态集合，供已有数据和后续接口扩展使用。
 
 `company_short_name` 只映射接口明确提供的简称：年报取 `secname_one/secname_two`，上市检索取 `companyShortName`。没有明确简称时写入 `NULL`，不使用企业全称兜底；当前 XLSX 只输出上市企业的非空简称。
 
-全部 6 张表和 45 个字段都在 MySQL DDL 中带简洁中文 `COMMENT`。字段、约束和联表查询见 [技术设计](docs/superpowers/specs/2026-09-04-cninfo-full-chain-collection-design.md)。
+全部 7 张表和 51 个字段都在 MySQL DDL 中带简洁中文 `COMMENT`。字段、约束和联表查询见 [技术设计](docs/superpowers/specs/2026-09-04-cninfo-full-chain-collection-design.md) 和 [A 股参考表设计](docs/superpowers/specs/2026-09-08-a-share-reference-table-design.md)。
 
 ## XLSX 输出
 
