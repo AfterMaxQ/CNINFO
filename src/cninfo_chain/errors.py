@@ -49,3 +49,7 @@ class ExportLocked(CollectorError):
 
 class CompanyCellTooLong(CollectorError):
     pass
+
+
+class ReferenceDataError(CollectorError):
+    pass
